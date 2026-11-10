@@ -17,7 +17,7 @@
 - `cargo build` must not touch the network. The build has no `git` call and no pkg-config.
 - C++ is compiled with `-std=c++17`. Defines: `LIBOPENMPT_BUILD`, `MPT_WITH_MINIZ`, `MPT_WITH_MINIMP3`, `MPT_WITH_STBVORBIS`, `STB_VORBIS_NO_PULLDATA_API`, `STB_VORBIS_NO_STDIO`. Never define `LIBOPENMPT_BUILD_DLL` or `LIBOPENMPT_USE_DLL`.
 - Crate names: `openmpt-ext-sys` (`links = "openmpt"`) and `openmpt-ext`. Both `publish = false`, with full publish metadata.
-- Licenses: our code is `MIT OR Apache-2.0`. The `openmpt-ext-sys` license field is `(MIT OR Apache-2.0) AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)`.
+- Licenses: our code is `Apache-2.0`. The `openmpt-ext-sys` license field is `Apache-2.0 AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)`.
 - `mod2stems` uses `#![forbid(unsafe_code)]`. `openmpt-ext` is the only crate with safe-wrapper `unsafe`, and every `unsafe` block has a `// SAFETY:` comment.
 - Every libopenmpt string is freed with `openmpt_free_string`. Every `int` result and every stored error is checked.
 - Rust gate: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo nextest run`, `cargo deny check`. Zero warnings in our code. The rust-dev bundle rules (`rust.md`) are canonical for lint policy.
@@ -43,7 +43,7 @@
 | `Cargo.toml` | Workspace root, `mod2stems` package, shared lint table |
 | `rust-toolchain.toml` | Pinned stable toolchain |
 | `deny.toml` | `cargo deny` licenses, bans, sources |
-| `LICENSE-MIT`, `LICENSE-APACHE` | Our license texts |
+| `LICENSE` | Apache-2.0 text for our code |
 | `src/main.rs` | Version-print stub |
 | `crates/openmpt-ext-sys/Cargo.toml` | `links = "openmpt"`, `include` list for packaging |
 | `crates/openmpt-ext-sys/build.rs` | Pin constants, source list, `cc` compile |
@@ -77,16 +77,16 @@ Each `impl Module` block lives in the file for its group (Rust allows `impl` blo
 ### Task 1: Workspace scaffold, licenses, toolchain
 
 **Files:**
-- Create: `Cargo.toml`, `rust-toolchain.toml`, `deny.toml`, `LICENSE-MIT`, `LICENSE-APACHE`, `src/main.rs`, `crates/openmpt-ext/Cargo.toml`, `crates/openmpt-ext/src/lib.rs`, `crates/openmpt-ext-sys/Cargo.toml`, `crates/openmpt-ext-sys/src/lib.rs`
+- Create: `Cargo.toml`, `rust-toolchain.toml`, `deny.toml`, `LICENSE`, `src/main.rs`, `crates/openmpt-ext/Cargo.toml`, `crates/openmpt-ext/src/lib.rs`, `crates/openmpt-ext-sys/Cargo.toml`, `crates/openmpt-ext-sys/src/lib.rs`
 - Modify: `.gitignore` (add `/target`)
 
 **Interfaces:**
 - Produces: workspace members `crates/openmpt-ext-sys` and `crates/openmpt-ext`; root package `mod2stems` (edition 2024) depending on `openmpt-ext` by path; workspace `[workspace.lints]` table that each crate inherits.
 
 - [ ] **Step 1:** Look up current stable versions of `cc`, `proptest`, and the Rust toolchain. Write `rust-toolchain.toml` with `channel = "<that version>"` and components `rustfmt`, `clippy`.
-- [ ] **Step 2:** Write the root `Cargo.toml`: `[workspace] members = ["crates/*"]`, `resolver = "3"`, package `mod2stems` with `license = "MIT OR Apache-2.0"`, `publish = false`. Set `[workspace.lints.rust] unsafe_op_in_unsafe_fn = "deny"` and the clippy policy from the rust-dev bundle.
+- [ ] **Step 2:** Write the root `Cargo.toml`: `[workspace] members = ["crates/*"]`, `resolver = "3"`, package `mod2stems` with `license = "Apache-2.0"`, `publish = false`. Set `[workspace.lints.rust] unsafe_op_in_unsafe_fn = "deny"` and the clippy policy from the rust-dev bundle.
 - [ ] **Step 3:** Write the two crate manifests with description, repository `https://github.com/phaedrus1992/mod2stems`, `publish = false`, and the license values from Global Constraints. `openmpt-ext-sys` gets `links = "openmpt"`. Empty `src/lib.rs` files have a crate doc comment only. `src/main.rs` has `#![forbid(unsafe_code)]` and an empty `main`.
-- [ ] **Step 4:** Add the standard MIT and Apache-2.0 texts as `LICENSE-MIT` and `LICENSE-APACHE` (copyright holder "Phaedrus"). Write `deny.toml` with an allow list of `MIT`, `Apache-2.0`, `BSD-3-Clause`, `CC0-1.0`, and `Unlicense`, and only crates.io as a source. Add another license only when `cargo deny check` reports it for a real dependency.
+- [ ] **Step 4:** Add the standard Apache-2.0 text as `LICENSE`. Write `deny.toml` with an allow list of `MIT`, `Apache-2.0`, `BSD-3-Clause`, `CC0-1.0`, and `Unlicense`, and only crates.io as a source. Add another license only when `cargo deny check` reports it for a real dependency.
 - [ ] **Step 5:** Run `cargo build && cargo clippy --all-targets --all-features -- -D warnings && cargo fmt --check && cargo deny check`. Expected: all pass with no warnings.
 - [ ] **Step 6:** Commit: `chore: add cargo workspace scaffold and licenses`.
 
@@ -396,7 +396,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - [ ] **Step 3:** Write `dependabot.yml`: `cargo` and `github-actions`, weekly, `cooldown: default-days: 7`, one group per ecosystem, no `gitsubmodule` entry.
 - [ ] **Step 4:** Write `.pre-commit-config.yaml` with hooks for cargo fmt, cargo clippy, shellcheck, shfmt, actionlint, and zizmor. Run `prek install && prek run --all-files`. Expected: pass.
 - [ ] **Step 5:** Run `actionlint && zizmor .github/workflows/ci.yml`. Expected: no findings.
-- [ ] **Step 6:** Add a "Build" section to `README.md` (one sentence per line): clone with `--recurse-submodules` or run `git submodule update --init --depth 1`, then `cargo build`. A C++17 compiler is required (on macOS, the Xcode command line tools). Also add a "License" section: `MIT OR Apache-2.0`, with libopenmpt and the decoders under their own licenses in `crates/openmpt-ext-sys/LICENSES/`.
+- [ ] **Step 6:** Add a "Build" section to `README.md` (one sentence per line): clone with `--recurse-submodules` or run `git submodule update --init --depth 1`, then `cargo build`. A C++17 compiler is required (on macOS, the Xcode command line tools). Also add a "License" section: `Apache-2.0`, with libopenmpt and the decoders under their own licenses in `crates/openmpt-ext-sys/LICENSES/`.
 - [ ] **Step 7:** Commit: `ci: add macOS and Linux CI with cached libopenmpt build` and `docs(readme): add build and license sections` (two commits).
 - [ ] **Step 8:** After the push, check the second CI run's log: the `openmpt-ext-sys` build step must show no C++ compile (the cache hit). If it compiles again, fix the cache key or the cache settings before the PR is done.
 

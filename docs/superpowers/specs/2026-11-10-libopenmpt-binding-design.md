@@ -126,9 +126,9 @@ Cargo then refuses a build graph that contains two crates that link libopenmpt, 
 
 Both crates get full publish metadata now: description, license, repository, and `include` lists that ship the vendored source the build needs.
 
-License (user decision): all of our own code is `MIT OR Apache-2.0`. This covers mod2stems, `openmpt-ext`, and our code in `openmpt-ext-sys`. Both licenses are compatible with libopenmpt BSD-3-Clause.
-The packaged `openmpt-ext-sys` crate also holds the vendored libopenmpt source and its bundled decoders. So its `license` field is `(MIT OR Apache-2.0) AND BSD-3-Clause`, plus the bundled decoders: miniz is MIT (`include/miniz/LICENSE`), minimp3 is CC0-1.0 (`include/minimp3/LICENSE`), and stb_vorbis is MIT OR Unlicense (the end of `include/stb_vorbis/stb_vorbis.c`). The full expression is `(MIT OR Apache-2.0) AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)`, and `cargo deny` must allow each one.
-The repository root gets `LICENSE-MIT` and `LICENSE-APACHE`.
+License (user decision): all of our own code is `Apache-2.0`. This covers mod2stems, `openmpt-ext`, and our code in `openmpt-ext-sys`. Apache-2.0 is compatible with libopenmpt BSD-3-Clause.
+The packaged `openmpt-ext-sys` crate also holds the vendored libopenmpt source and its bundled decoders. So its `license` field is `Apache-2.0 AND BSD-3-Clause`, plus the bundled decoders: miniz is MIT (`include/miniz/LICENSE`), minimp3 is CC0-1.0 (`include/minimp3/LICENSE`), and stb_vorbis is MIT OR Unlicense (the end of `include/stb_vorbis/stb_vorbis.c`). The full expression is `Apache-2.0 AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)`, and `cargo deny` must allow each one.
+The repository root gets the Apache-2.0 text as `LICENSE`.
 `cargo package --list` for `openmpt-ext-sys` must include every file that `build.rs` reads, and it must stay under the crates.io size limit (the builder checks this, and files an issue if it does not fit).
 
 mod2stems itself uses `#![forbid(unsafe_code)]`.
