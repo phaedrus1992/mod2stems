@@ -221,6 +221,8 @@ Every `const char *` that libopenmpt returns is copied into a `String` (lossy UT
 Before each call, the wrapper checks the channel, instrument, pattern, row, and subsong indices against the counts that libopenmpt reports. It returns an error that names the index and the valid range. Libopenmpt must never get an index that is out of range.
 For `set_instrument_mute_status` and its getter, the valid range is the instrument count. In a module with no instruments, it is the sample count, which matches libopenmpt.
 
+The float read checks the sample rate against the range in the `libopenmpt.h` read comment (8000 to 192000 Hz). libopenmpt does not check it, and a rate of 0 reaches a division (`libopenmpt_impl.cpp:995`).
+
 `set_channel_volume` checks that the value is finite and in 0..1 before the call. Its documentation says that libopenmpt quantizes the value to steps of 1/64.
 
 Optional controls: the wrapper reads `get_ctls` once, at load. A typed ctl setter for a key that is not in that list returns an error, and it does not call libopenmpt. Profiles (#5) depend on this check.
