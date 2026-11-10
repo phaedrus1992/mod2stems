@@ -365,9 +365,9 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - Modify: `src/main.rs`
 - Create: `tests/version.rs`
 
-- [ ] **Step 1:** Write the failing test `prints_versions`. It runs `env!("CARGO_BIN_EXE_mod2stems")` and asserts stdout contains `mod2stems <CARGO_PKG_VERSION>`, `libopenmpt 0.8.10`, and `r25840`, with exit code 0.
+- [ ] **Step 1:** Write the failing tests `prints_versions` and `prints_one_line`. `prints_versions` runs `env!("CARGO_BIN_EXE_mod2stems")` and asserts stdout contains `mod2stems <CARGO_PKG_VERSION>`, `libopenmpt 0.8.10`, and `r25840`, with exit code 0. `prints_one_line` checks that the output is one line.
 - [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3:** Implement `main` with `openmpt_ext::library_info`. Print one line: `mod2stems {ver} (libopenmpt {lib} r{rev}, {url})`.
+- [ ] **Step 3:** Implement `main` with `openmpt_ext::library_info`. Print one line: `mod2stems {ver} (libopenmpt {lib}, {url})`. The `library_version` string already holds the revision, as in `0.8.10+r25840`, so a separate `source_revision` field would print it twice. The workspace denies `print_stdout`, so `main` carries `#[expect(clippy::print_stdout, reason = "...")]`.
 - [ ] **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit: `feat: print tool and libopenmpt versions`.
 
