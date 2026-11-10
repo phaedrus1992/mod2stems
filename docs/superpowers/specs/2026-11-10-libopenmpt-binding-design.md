@@ -124,7 +124,11 @@ The reasons for the split:
 `links = "openmpt"` stays the same as in the other `-sys` crates.
 Cargo then refuses a build graph that contains two crates that link libopenmpt, which would fail at link time anyway.
 
-Both crates get full publish metadata now: description, license (BSD-3-Clause for `openmpt-ext-sys`, to match the vendored code; the builder picks the wrapper license with the user at review), repository, and `include` lists that ship the vendored source the build needs.
+Both crates get full publish metadata now: description, license, repository, and `include` lists that ship the vendored source the build needs.
+
+License (user decision): all of our own code is `MIT OR Apache-2.0`. This covers mod2stems, `openmpt-ext`, and our code in `openmpt-ext-sys`. Both licenses are compatible with libopenmpt BSD-3-Clause.
+The packaged `openmpt-ext-sys` crate also holds the vendored libopenmpt source and its bundled decoders. So its `license` field is `(MIT OR Apache-2.0) AND BSD-3-Clause`, plus the bundled decoders: miniz is MIT (`include/miniz/LICENSE`), minimp3 is CC0-1.0 (`include/minimp3/LICENSE`), and stb_vorbis is MIT OR Unlicense (the end of `include/stb_vorbis/stb_vorbis.c`). The full expression is `(MIT OR Apache-2.0) AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)`, and `cargo deny` must allow each one.
+The repository root gets `LICENSE-MIT` and `LICENSE-APACHE`.
 `cargo package --list` for `openmpt-ext-sys` must include every file that `build.rs` reads, and it must stay under the crates.io size limit (the builder checks this, and files an issue if it does not fit).
 
 mod2stems itself uses `#![forbid(unsafe_code)]`.
@@ -323,7 +327,7 @@ These choices were not discussed with the user. They are easy to change at revie
 1. The crate names `openmpt-ext-sys` and `openmpt-ext`, and the split of the safe wrapper into its own crate.
 2. `links = "openmpt"`, which keeps the binding crates exclusive with the other libopenmpt `-sys` crates.
 3. A manual bump script instead of Dependabot for the submodule.
-4. License files in the repository, with no embedded copy in the binary.
+4. Third-party license files in the repository, with no embedded copy in the binary.
 5. `main.rs` as a version-print stub.
 6. The minimum libopenmpt version item removed from the design and from #4.
 7. Tests with a generated MOD, not the fixture corpus.
