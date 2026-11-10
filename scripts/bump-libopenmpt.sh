@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Move the vendored libopenmpt pin to a release tag and regenerate bindings.
+#
+# Usage:
+#   scripts/bump-libopenmpt.sh <tag>    for example: libopenmpt-0.8.11
+#   scripts/bump-libopenmpt.sh --help
+#
+# The tag must name a release. The script checks out the tag in the submodule,
+# reads its commit, SVN revision, URL, and date, and writes them to the five
+# pin constants in crates/openmpt-ext-sys/build.rs. It then runs
+# scripts/regen-bindings.sh.
+#
+# stdout holds one block of "old" and "new" values. Diagnostics go to stderr.
+# A failure leaves the tree as it was, where a failure is possible before the
+# first write.
+set -euo pipefail
+
+usage() {
+	sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+die() {
+	echo "bump-libopenmpt.sh: $1" >&2
+	exit 1
+}
+
+note() {
+	echo "bump-libopenmpt.sh: $1" >&2
+}
+
+case "${1:-}" in
+--help | -h)
+	usage
+	exit 0
+	;;
+"")
+	usage >&2
+	die "a tag is required. Run: scripts/bump-libopenmpt.sh libopenmpt-0.8.11"
+	;;
+esac
+
+tag="$1"
+[[ "$tag" =~ ^libopenmpt-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] ||
+	die "the tag '$tag' is not a release tag. Use libopenmpt-<major>.<minor>.<patch>, for example libopenmpt-0.8.11"
+
+ROOT="$(git rev-parse --show-toplevel)"
+VENDOR="$ROOT/crates/openmpt-ext-sys/vendor/openmpt"
+BUILD_RS="$ROOT/crates/openmpt-ext-sys/build.rs"
+
+[[ -f "$VENDOR/libopenmpt/libopenmpt.h" ]] ||
+	die "$VENDOR/libopenmpt/libopenmpt.h is missing. Run: git submodule update --init --depth 1"
+[[ -f "$BUILD_RS" ]] || die "$BUILD_RS is missing. Run the script from the repository."
+
+command -v bindgen >/dev/null 2>&1 ||
+	die "bindgen is not on PATH. Run: cargo install bindgen-cli --version 0.73.2 --locked"
+
+old_tag="$(sed -nE 's/^const PIN_TAG: &str = "(.*)";$/\1/p' "$BUILD_RS")"
+old_commit="$(sed -nE 's/^const PIN_COMMIT: &str = "(.*)";$/\1/p' "$BUILD_RS")"
+old_revision="$(sed -nE 's/^const PIN_SVN_REVISION: &str = "(.*)";$/\1/p' "$BUILD_RS")"
+
+note "fetching $tag"
+# A release tag can be fetched on its own, because the submodule is shallow.
+git -C "$VENDOR" fetch --quiet --depth 1 --force origin "tag" "$tag" ||
+	die "cannot fetch the tag $tag from origin. Check the tag name and the network."
+git -C "$VENDOR" checkout --quiet --force --detach "refs/tags/$tag" ||
+	die "cannot check out the tag $tag"
+
+new_commit="$(git -C "$VENDOR" rev-parse HEAD)"
+message="$(git -C "$VENDOR" log -1 --format=%B)"
+svn_line="$(grep -F 'git-svn-id:' <<<"$message" | head -n 1)"
+[[ -n "$svn_line" ]] || die "the commit $new_commit holds no git-svn-id line. The revision is not known."
+svn_id="${svn_line##*git-svn-id: }"
+svn_id="${svn_id%% *}"
+new_revision="${svn_id##*@}"
+new_url="${svn_id%@*}"
+[[ "$new_revision" =~ ^[0-9]{1,7}$ ]] || die "the git-svn-id line '$svn_line' names no revision."
+new_date="$(git -C "$VENDOR" log -1 --format=%cI)"
+
+# Writes one string constant. The replacement uses environment variables, so a
+# value holds no regular expression syntax of its own.
+set_const() {
+	local name="$1" value="$2"
+	NEW_NAME="$name" NEW_VALUE="$value" perl -pi -e \
+		's{^(const \Q$ENV{NEW_NAME}\E: &str = ")[^"]*(";)$}{$1$ENV{NEW_VALUE}$2}' "$BUILD_RS"
+	grep -qF "const $name: &str = \"$value\";" "$BUILD_RS" ||
+		die "the rewrite of $name did not take effect in $BUILD_RS"
+}
+
+set_const PIN_TAG "$tag"
+set_const PIN_COMMIT "$new_commit"
+set_const PIN_SVN_REVISION "$new_revision"
+set_const PIN_SVN_URL "$new_url"
+set_const PIN_SVN_DATE "$new_date"
+
+note "regenerating bindings"
+"$ROOT/scripts/regen-bindings.sh" >&2 || die "the bindings did not regenerate. Fix the cause, then run: scripts/regen-bindings.sh"
+
+printf 'old tag:      %s\n' "$old_tag"
+printf 'old commit:   %s\n' "$old_commit"
+printf 'old revision: %s\n' "$old_revision"
+printf 'new tag:      %s\n' "$tag"
+printf 'new commit:   %s\n' "$new_commit"
+printf 'new revision: %s\n' "$new_revision"
+printf 'new url:      %s\n' "$new_url"
+printf 'new date:     %s\n' "$new_date"

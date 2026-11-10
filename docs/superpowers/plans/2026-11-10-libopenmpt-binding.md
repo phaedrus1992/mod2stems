@@ -387,7 +387,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - Rewrite the constants with `perl -pi -e`, and check after each rewrite that the new value is in the file.
   - Run `scripts/regen-bindings.sh`.
 - [ ] **Step 2:** Run `shellcheck` and `shfmt -d`. Expected: clean.
-- [ ] **Step 3:** Test `scripts/bump-libopenmpt.sh libopenmpt-0.8.10`. Expected: no diff in `git status` (a bump to the same tag is a no-op). Test `scripts/bump-libopenmpt.sh 0.8.10`. Expected: exit 1 with the tag-shape message.
+- [ ] **Step 3:** Test `scripts/bump-libopenmpt.sh libopenmpt-0.8.10`. Expected: exit 0 and no diff in `git status`, because a bump to the same tag is a no-op. Test `scripts/bump-libopenmpt.sh 0.8.10`. Expected: exit 1 with the tag-shape message. Test a tag that does not exist. Expected: exit 1, and the submodule stays on its pin.
 - [ ] **Step 4:** Commit: `feat(scripts): add libopenmpt pin bump script`.
 
 ### Task 13: CI, Dependabot, prek, README
