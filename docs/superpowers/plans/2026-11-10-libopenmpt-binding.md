@@ -282,10 +282,18 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - [ ] **Step 1: Write the failing tests:**
   - `select_subsong_out_of_range`: subsong `1` on `simple_mod` is an error that names `0..1`
   - `select_subsong_minus_one_is_rejected`: `-1` (all subsongs) is an error, because `docs/design.md` §4.2 does not allow the library default
+  - `select_subsong_zero_is_accepted`: subsong `0` is accepted, and `selected_subsong` reads 0
   - `pattern_cell_reads_generator_values`: row 0, channel 2 has instrument `3` and a non-zero note
-  - `pattern_cell_out_of_range_row`: row 64 is an error
+  - `pattern_cell_out_of_range_row`: row 64 is an error that names `0..64`
+  - `pattern_cell_out_of_range_channel`: channel 4 is an error that names `0..4`
+  - `pattern_cell_out_of_range_pattern`: pattern 9 is an error with `input == "pattern 9"`
   - `pattern_num_rows_is_64`
+  - `pattern_num_rows_out_of_range`: pattern 9 is an error. The library returns 0 for a missing pattern, so the wrapper checks the index first.
+  - `order_pattern_reads_the_order_list`: order 0 plays pattern 0
   - `duration_is_positive`
+  - `position_starts_at_zero`: a fresh module reports position 0
+  - `position_after_load_is_first_row`: order, row, and pattern are 0, and the speed and tempo are in range
+  - `repeat_count_zero_is_accepted`: a repeat count of 0 is accepted
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. `pattern_cell` checks the pattern, row, and channel ranges.
 - [ ] **Step 4:** Run. Expected: PASS.

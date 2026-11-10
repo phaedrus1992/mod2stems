@@ -14,6 +14,7 @@ mod error;
 mod info;
 mod initial_ctl;
 mod module;
+mod position;
 
 pub use ctl::RenderParam;
 pub use error::OpenmptError;
@@ -22,3 +23,4 @@ pub use info::LibraryInfo;
 pub use info::library_info;
 pub use initial_ctl::InitialCtl;
 pub use module::Module;
+pub use position::Command;
