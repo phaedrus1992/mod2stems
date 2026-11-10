@@ -1,0 +1,4 @@
+[submodule "crates/openmpt-ext-sys/vendor/openmpt"]
+	path = crates/openmpt-ext-sys/vendor/openmpt
+	url = https://github.com/OpenMPT/openmpt.git
+	shallow = true
