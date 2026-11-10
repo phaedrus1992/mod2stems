@@ -7,6 +7,25 @@ edition.workspace = true
 repository.workspace = true
 publish.workspace = true
 links = "openmpt"
+include = [
+	"src/**",
+	"tests/**",
+	"build.rs",
+	"wrapper.h",
+	"LICENSES/**",
+	"vendor/openmpt/src/openmpt/**",
+	"vendor/openmpt/common/**",
+	"vendor/openmpt/soundlib/**",
+	"vendor/openmpt/sounddsp/**",
+	"vendor/openmpt/libopenmpt/**",
+	"vendor/openmpt/include/miniz/**",
+	"vendor/openmpt/include/minimp3/**",
+	"vendor/openmpt/include/stb_vorbis/**",
+	"vendor/openmpt/LICENSE",
+]
+
+[build-dependencies]
+cc = { version = "1.11.1", features = ["parallel"] }
 
 [lints]
 workspace = true

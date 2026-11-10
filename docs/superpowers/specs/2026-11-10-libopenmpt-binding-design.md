@@ -72,6 +72,9 @@ All citations are `openmpt/<path>:<line>` at `libopenmpt-0.8.10` (`dc4ddcf68`).
   - `sounddsp/*.cpp`
   - `libopenmpt/*.cpp`, which includes `libopenmpt_ext_impl.cpp`
   - `unarchiver/*.cpp` is built only with `HACK_ARCHIVE_SUPPORT=1` (`Makefile:1543-1546`). Leave it out.
+- At this tag the seven `src/openmpt` directories hold headers only, so their glob returns no file.
+  The real C++ set is 149 files: `common` 10, `soundlib` 115, `soundlib/plugins` 5, `soundlib/plugins/dmo` 11, `sounddsp` 4, `libopenmpt` 4.
+  `build.rs` keeps the seven directories in its list, because the upstream `Makefile` names them and a later pin can add a file there.
 - The bundled decoders are in `Makefile:1553-1633`:
   - `include/miniz/miniz.c` with `-DMPT_WITH_MINIZ`
   - `include/minimp3/minimp3.c` with `-DMPT_WITH_MINIMP3`
