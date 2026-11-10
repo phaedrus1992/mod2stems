@@ -184,7 +184,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `unknown_initial_ctl_is_error`: `InitialCtl { key: "no.such.ctl", .. }` gives an error with `input == "no.such.ctl"`.
   - `drop_many_modules`: load and drop 1000 times with no crash.
   - `module_is_send`: move a `Module` into `std::thread::spawn` and call `take_log()` there.
-  - `load_warning_is_logged`: load a MOD with a sample length larger than the data in the file. `take_log()` is not empty, and a second `take_log()` is empty.
+  - `load_warning_is_logged`: load a Startrekker AM file (`support::startrekker_am()`, the `FLT8` magic) that names four samples in the pattern and gives no sample data. `take_log()` is not empty, and a second `take_log()` is empty. A truncated `M.K.` file does not log a warning at 0.8.10: `SampleIO::ReadSample` limits the length without a message, and the loader reports a short sample through the `warnings` metadata key instead.
 - [ ] **Step 3:** Run `cargo nextest run -p openmpt-ext`. Expected: FAIL (`Module` is not defined).
 - [ ] **Step 4: Implement.**
   - `from_bytes`: create a boxed log sink, a `RefCell<Vec<String>>`. Call `openmpt_module_ext_create_from_memory` with the log function, the sink pointer, `openmpt_error_func_store`, the `error` and `error_message` out-params, and a NUL-terminated `openmpt_module_initial_ctl` array. On null, build the error from the code, the message (freed), and the drained log.
