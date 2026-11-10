@@ -2,4 +2,4 @@ name: "mod2stems"
 description: "Convert most module formats to stems for mixing/mastering"
 id: "mod2env"
 
-tags: ["lang-rust", "audio"]
+tags: ["lang-rust", "lang-cpp", "audio"]
