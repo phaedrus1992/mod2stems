@@ -1,0 +1,23 @@
+[graph]
+targets = []
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "Unlicense",
+]
+# The allow list above is the complete set. Add a license only when a real
+# dependency reports it.
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
