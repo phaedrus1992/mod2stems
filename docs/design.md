@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`mod2stems` exports per-channel stems from tracker modules supported by the
-system-installed `libopenmpt`, with optional per-instrument/per-channel exports
+`mod2stems` exports per-channel stems from tracker modules supported by a
+vendored, statically linked stock `libopenmpt`, with optional per-instrument/per-channel exports
 and mixes. Its priority is faithful
 playback: preserve the module's timing, pitch, instruments, envelopes, panning,
 and supported effects while producing aligned audio suitable for a DAW.
@@ -54,6 +54,7 @@ automatically detectable.
   downloads or caches.
 - Sample enhancement/replacement, persistent module editing, custom libopenmpt
   forks, and reference-conditioned enhancement.
+  The vendored libopenmpt is unmodified upstream source at a pinned tag, so it is not a custom fork.
   Sample silencing in a discarded private copy, for pair isolation only, is permitted under the constraints in section 4.5.
 - Automatic denoising, excitation, compression, limiting, loudness normalization,
   stereo widening, or channel re-centering.
@@ -104,9 +105,13 @@ not an assumed fidelity improvement or an initial-release requirement.
 
 ## 3. Stock libopenmpt integration
 
-Link dynamically to system `libopenmpt`, discovered through pkg-config or the
-platform equivalent. No vendored renderer or C++ library build is required. A
-small Rust build script for dependency discovery is allowed.
+Build against a vendored libopenmpt, and link it statically.
+A git submodule holds unmodified upstream source at the pinned tag `libopenmpt-0.8.10` (commit `dc4ddcf68`, SVN revision `25840`) under `crates/openmpt-ext-sys/vendor/openmpt`.
+The `openmpt-ext-sys` crate compiles that source with `cc` under the C++17 standard.
+The bundled decoders (miniz, minimp3, and stb_vorbis) compile in the same build.
+The build needs no system library, no dependency-discovery tool, and no network access after the clone.
+The `openmpt-ext` crate is the safe wrapper over that build.
+Bump the pin with `scripts/bump-libopenmpt.sh`, which also regenerates the bindings.
 
 The safe wrapper owns an `openmpt_module_ext` created from the input bytes and
 obtains its borrowed core module with `openmpt_module_ext_get_module`. It destroys
@@ -385,7 +390,7 @@ publish a partial set as complete; report any retained staging files explicitly.
 
 | Component | Responsibility |
 |-----------|----------------|
-| `openmpt.rs` | Safe stock-API ownership, capability checks, configuration, metadata, channel mute and channel volume, instrument mute, order/row trace, pattern cell reads, and float reads. |
+| `openmpt-ext` crate | Safe stock-API ownership, capability checks, configuration, metadata, channel mute and channel volume, instrument mute, order/row trace, pattern cell reads, and float reads. |
 | `profile.rs` | Resolve rendering profiles and validate supported combinations. |
 | `stems.rs` | Bounded channel and pair render orchestration, subsong/end policy, timeline alignment, downmixing, and separate set summation. |
 | `pairs.rs` | Pair identities, discovery from the row trace, strategy selection, and completeness checks. |
@@ -455,8 +460,9 @@ must be resolved with evidence:
 - Select an end/tail policy using the stock end controls and fixture renders.
   Document any intentional fade and ensure maximum-duration termination is distinct
   from a successfully completed export.
-- Choose a tested minimum libopenmpt version, confirm profile capability detection
-  on supported platforms, and resolve how applicable Amiga modules are identified.
+- Confirm profile capability detection on supported platforms, and resolve how applicable Amiga modules are identified.
+  The build pins one libopenmpt version, so there is no minimum version to choose.
+  The runtime `get_ctls` check still applies, because a profile control may be absent.
 - Set default output rate, resource limits, encoding choices, and comparison
   tolerances in named implementation configuration after validation.
 
