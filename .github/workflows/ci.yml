@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Incremental compilation only adds cost in a clean runner.
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          cache-workspace-crates: true
+          key: ${{ hashFiles('crates/openmpt-ext-sys/build.rs') }}
+
+      - name: Install the tools
+        uses: taiki-e/install-action@835cdc15ee7680334982c900847bcafb86487299 # v2.90.3
+        with:
+          tool: nextest,cargo-deny
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run the tests
+        run: cargo nextest run --workspace
+
+      - name: Check the licenses and the sources
+        run: cargo deny check
+
+      - name: Check the package file list
+        run: cargo package --list -p openmpt-ext-sys --allow-dirty
+
+      - name: Build the release command
+        run: cargo build --release --bin mod2stems
+
+      - name: Check the linked libraries on Linux
+        if: runner.os == 'Linux'
+        run: ldd target/release/mod2stems | tee deps.txt
+
+      - name: Check the linked libraries on macOS
+        if: runner.os == 'macOS'
+        run: otool -L target/release/mod2stems | tee deps.txt
+
+      - name: Check that libopenmpt is static
+        run: |
+          set -euo pipefail
+          if grep -Ei 'openmpt|libz|mpg123|ogg|vorbis' deps.txt; then
+            echo "a decoder or libopenmpt is linked dynamically" >&2
+            exit 1
+          fi
+          echo "the command links no decoder or libopenmpt at run time"
+
+      - name: Run the command
+        run: ./target/release/mod2stems
+
+  bindings:
+    name: bindings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install libclang
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes libclang-dev
+
+      - name: Install the bindgen CLI
+        run: cargo install bindgen-cli --version 0.73.2 --locked
+
+      - name: Check that the bindings match the headers
+        run: ./scripts/regen-bindings.sh --check
