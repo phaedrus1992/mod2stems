@@ -342,8 +342,8 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `mute_getter_round_trip`
   - `volume_is_quantized`: set `0.5` and read `0.5`. Set `0.3` and read `(0.3_f64 * 64.0).round() / 64.0`.
   - `volume_out_of_range`: `1.5`, `-0.1`, and `f64::NAN` are each an error that names the value
-  - `instrument_mute_uses_sample_count`: `simple_mod` has no instruments, so the valid range is the sample count. Index `0` and index `num_samples() + 1` are errors (the message names the range), and index `1` is `Ok`. Check the 1-based slot convention in `libopenmpt_ext_impl.cpp:221-223`, and make the test match it.
-  - `channel_out_of_range`: channel `4` is an error on all six methods
+  - `instrument_mute_uses_sample_count`: `simple_mod` has no instruments, so the valid range is the sample count. Index `0` and index `num_samples() + 1` are errors (the message names the range), and index `1` is `Ok`. The C wrapper checks `0 <= instrument < max` and then reads the 1-based slot `instrument + 1`, so the valid index starts at 0 (`libopenmpt_ext_impl.cpp:221-223`).
+  - `channel_out_of_range`: channel `4` is an error on all four channel methods. The two instrument methods do not take a channel index, so they are not in this test. `instrument_out_of_range_is_not_a_channel_index` checks that sample slot 4 stays valid.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. `set_channel_volume` checks that the value is finite and in `0.0..=1.0` before the call. Its doc comment says that libopenmpt quantizes the value to 1/64 steps. `channel_volume` calls `check_last_error` after the call, because 0.0 is ambiguous.
 - [ ] **Step 4:** Run. Expected: PASS.

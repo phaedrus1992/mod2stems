@@ -88,8 +88,12 @@ impl Module {
         self.core
     }
 
+    /// Returns the extended handle that the interface functions take.
+    pub(crate) fn ext(&self) -> *mut openmpt_module_ext {
+        self.ext
+    }
+
     /// Returns the interactive extension interface.
-    #[expect(dead_code, reason = "Task 9 reads the interface")]
     pub(crate) fn interactive(&self) -> &openmpt_module_ext_interface_interactive {
         &self.interactive
     }

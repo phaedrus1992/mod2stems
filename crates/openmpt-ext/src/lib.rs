@@ -13,6 +13,7 @@ mod ctl;
 mod error;
 mod info;
 mod initial_ctl;
+mod interactive;
 mod module;
 mod position;
 mod render;
