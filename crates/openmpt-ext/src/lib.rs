@@ -9,11 +9,13 @@
 )]
 
 mod cstr;
+mod ctl;
 mod error;
 mod info;
 mod initial_ctl;
 mod module;
 
+pub use ctl::RenderParam;
 pub use error::OpenmptError;
 pub use error::Result;
 pub use info::LibraryInfo;

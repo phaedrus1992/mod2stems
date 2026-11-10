@@ -238,14 +238,17 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
     - `fn ctl_set_bool(&mut self, key: &str, v: bool) -> Result<()>`, with `ctl_set_int(i64)`, `ctl_set_float(f64)`, `ctl_set_text(&str)`
     - the matching getters `ctl_get_bool`, `ctl_get_int`, `ctl_get_float`, `ctl_get_text`, each `-> Result<_>`
     - `fn set_render_param(&mut self, p: RenderParam, v: i32) -> Result<()>`
-    - `fn render_param(&self, p: RenderParam) -> Result<i32>`
+    - `fn render_param(&mut self, p: RenderParam) -> Result<i32>`. It takes `&mut self` because it clears and then reads the stored error.
   - `enum RenderParam { MasterGainMillibel, StereoSeparationPercent, InterpolationFilterLength, VolumeRampingStrength }`, mapped to the `OPENMPT_MODULE_RENDER_*` ids
 
 - [ ] **Step 1: Write the failing tests:**
   - `ctl_list_has_amiga_keys`: contains `render.resampler.emulate_amiga` and `render.resampler.emulate_amiga_type`
   - `ctl_list_has_subsong_and_dither`
   - `set_get_bool_round_trip` on `render.resampler.emulate_amiga`
+  - `ctl_table_matches_library`: every key in the library ctl list has a type in the crate table, so a version bump that adds a ctl fails this test
   - `set_get_text_round_trip` on `render.resampler.emulate_amiga_type` with `"a500"`
+  - `set_get_float_round_trip` on `play.tempo_factor` with `1.5`. The library stores the factor as a fixed-point value with 16 bits of fraction, so the read is within `1/65536` of the set value.
+  - `set_get_int_round_trip` on `dither`
   - `unknown_ctl_is_error_without_library_call`: `ctl_set_bool("no.such", true)` gives an error with `input == "no.such"`
   - `wrong_type_ctl_is_error`: `ctl_set_bool("play.tempo_factor", true)` is an error
   - `render_param_round_trip`: `InterpolationFilterLength` set to 8 reads back as 8

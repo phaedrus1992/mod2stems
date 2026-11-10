@@ -20,6 +20,27 @@ pub struct OpenmptError {
     pub log: Vec<String>,
 }
 
+impl OpenmptError {
+    /// Builds an error that this crate found before the library call.
+    ///
+    /// The error has no code and no log lines, because no library call ran.
+    pub fn new(
+        op: &'static str,
+        input: impl Into<String>,
+        message: impl Into<String>,
+        hint: Option<&'static str>,
+    ) -> Self {
+        Self {
+            op,
+            input: input.into(),
+            code: None,
+            message: message.into(),
+            hint,
+            log: Vec::new(),
+        }
+    }
+}
+
 impl fmt::Display for OpenmptError {
     fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(out, "{} ({}): {}", self.op, self.input, self.message)?;

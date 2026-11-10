@@ -30,6 +30,7 @@ pub struct Module {
     ext: *mut openmpt_module_ext,
     core: *mut openmpt_module,
     interactive: openmpt_module_ext_interface_interactive,
+    pub(crate) ctls: HashSet<String>,
     sink: Box<RefCell<Vec<String>>>,
     // The marker makes the type `!Sync` without a lock. The log callback runs on
     // the calling thread and writes through a `RefCell`.
@@ -93,8 +94,15 @@ impl Module {
         &self.interactive
     }
 
+    /// Clears the stored error, so a later call reports only its own failure.
+    ///
+    /// libopenmpt does not clear the stored error on its own.
+    pub(crate) fn clear_error(&mut self) {
+        // SAFETY: the handle is live. The call only writes the error state.
+        unsafe { openmpt_ext_sys::openmpt_module_error_clear(self.core) };
+    }
+
     /// Reads the stored error, and returns one when a call set it.
-    #[expect(dead_code, reason = "Tasks 6 to 9 report a failed call")]
     pub(crate) fn check_last_error(
         &mut self,
         op: &'static str,
@@ -154,15 +162,19 @@ impl Module {
                 log: std::mem::take(&mut *sink.borrow_mut()),
             });
         }
-        if let Err(error) = check_ctl_keys(core, ctls, &sink) {
-            // SAFETY: the handle is live and is not used after this call.
-            unsafe { openmpt_ext_sys::openmpt_module_ext_destroy(ext) };
-            return Err(error);
-        }
+        let known = match check_ctl_keys(core, ctls, &sink) {
+            Ok(known) => known,
+            Err(error) => {
+                // SAFETY: the handle is live and is not used after this call.
+                unsafe { openmpt_ext_sys::openmpt_module_ext_destroy(ext) };
+                return Err(error);
+            }
+        };
         Ok(Self {
             ext,
             core,
             interactive,
+            ctls: known,
             sink,
             _not_sync: PhantomData,
         })
@@ -216,21 +228,18 @@ fn load_error(
     }
 }
 
-/// Rejects a ctl key that libopenmpt does not report for this module.
+/// Reads the ctl list, and rejects a key that libopenmpt does not report.
 fn check_ctl_keys(
     core: *mut openmpt_module,
     ctls: &[InitialCtl],
     sink: &RefCell<Vec<String>>,
-) -> Result<()> {
-    if ctls.is_empty() {
-        return Ok(());
-    }
+) -> Result<HashSet<String>> {
     // SAFETY: the handle is live. The list is owned by the caller.
     let list = LibString::take(unsafe { openmpt_ext_sys::openmpt_module_get_ctls(core) })
         .unwrap_or_default();
-    let known: HashSet<&str> = list.split(';').collect();
+    let known: HashSet<String> = list.split(';').map(str::to_owned).collect();
     for ctl in ctls {
-        if known.contains(ctl.key.as_str()) {
+        if known.contains(&ctl.key) {
             continue;
         }
         return Err(OpenmptError {
@@ -244,7 +253,7 @@ fn check_ctl_keys(
             log: std::mem::take(&mut *sink.borrow_mut()),
         });
     }
-    Ok(())
+    Ok(known)
 }
 
 /// The ctl list in the C form, with the strings that the pointers refer to.
