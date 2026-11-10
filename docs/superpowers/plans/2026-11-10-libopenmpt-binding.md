@@ -314,7 +314,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `odd_buffer_is_error`: length 5 gives an error whose message names the even-length rule
   - `song_end_returns_zero`: with `set_repeat_count(0)`, read until `Ok(0)`, then one more read is `Ok(0)` and `current_row()` does not panic
   - `bad_rate_is_error`: rates `0` and `1_000_000` each give an `Err` that names the rate. Neither gives `Ok(0)`.
-  - `position_advances_by_row`: read the song in 64-frame blocks at 48000 Hz, and record `(current_order(), current_row())` after each read. Deduplicate consecutive repeats. The sequence starts `(0,0), (0,1), (0,2)`.
+  - `position_advances_by_row`: read the song in 64-frame blocks at 48000 Hz, and record `(current_order(), current_row())` after each read. Deduplicate consecutive repeats. The sequence starts `(0,0), (0,1), (0,2)`. A 64-frame block at 48000 Hz is shorter than one row, so the loop reads 200 blocks and the start of the sequence is the value under test.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. Check that the length is even. Check the rate against `pub const SAMPLE_RATE_RANGE: RangeInclusive<i32> = 8000..=192000` (the range in the `libopenmpt.h` comment for the read functions). libopenmpt itself does not check the rate, and rate 0 reaches a division (`libopenmpt_impl.cpp:995`). Then call `openmpt_module_read_interleaved_float_stereo` with `count = len / 2`, then `check_last_error`.
 - [ ] **Step 4:** Run. Expected: PASS.

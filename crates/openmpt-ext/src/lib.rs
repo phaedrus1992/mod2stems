@@ -15,6 +15,7 @@ mod info;
 mod initial_ctl;
 mod module;
 mod position;
+mod render;
 
 pub use ctl::RenderParam;
 pub use error::OpenmptError;
@@ -24,3 +25,4 @@ pub use info::library_info;
 pub use initial_ctl::InitialCtl;
 pub use module::Module;
 pub use position::Command;
+pub use render::SAMPLE_RATE_RANGE;
