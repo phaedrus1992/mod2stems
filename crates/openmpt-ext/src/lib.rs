@@ -10,10 +10,13 @@
 
 mod cstr;
 mod error;
+mod info;
 mod initial_ctl;
 mod module;
 
 pub use error::OpenmptError;
 pub use error::Result;
+pub use info::LibraryInfo;
+pub use info::library_info;
 pub use initial_ctl::InitialCtl;
 pub use module::Module;

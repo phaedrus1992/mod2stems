@@ -83,7 +83,6 @@ impl Module {
     }
 
     /// Returns the core module handle.
-    #[expect(dead_code, reason = "Tasks 5 to 9 read the handle")]
     pub(crate) fn core(&self) -> *mut openmpt_module {
         self.core
     }

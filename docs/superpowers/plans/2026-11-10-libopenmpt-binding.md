@@ -211,13 +211,13 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
     - `fn channel_name(&self, i: i32) -> Result<String>`, `instrument_name`, `sample_name`, `subsong_name`
 
 - [ ] **Step 1: Write the failing tests:**
-  - `library_version_is_0_8_10`
+  - `library_version_is_0_8_10`: the string starts with `"0.8.10"`. It carries a source suffix, such as `"0.8.10+r25840"`, so an exact match fails.
   - `source_revision_is_pinned` (compare with `openmpt_ext_sys::PIN_SVN_REVISION`)
   - `metadata_keys_include_type_and_title`
   - `metadata_type_is_mod`
   - `counts_match_simple_mod`: 4 channels, 0 instruments, 31 samples, 1 subsong
-  - `sample_name_round_trips`: the generator writes `b"kick"`, and the result is `"kick"`
-  - `non_utf8_name_is_lossy`: a name byte `0xFF` gives a string that contains `'\u{FFFD}'`
+  - `sample_name_round_trips`: the generator writes `b"kick"`, and sample index `0` gives `"kick"`. The sample getter takes a zero-based index into the name list, and the list starts at `SAMPLEINDEX` 1 in the loader.
+  - `high_name_byte_is_transcoded`: a name byte `0xFF` gives `"\u{FF}ick"`. libopenmpt transcodes a module string to UTF-8 before the wrapper copies it, so the byte arrives as a valid character. The lossy path stays in `LibString::take` as a guard, and no module byte reaches it.
   - `channel_name_out_of_range`: index `4` gives an error with `input == "channel 4"`, and the message names `0..4`
   - `metadata_unknown_key_is_empty_string`: libopenmpt returns an empty string, so the wrapper returns `Ok("")`
 - [ ] **Step 2:** Run. Expected: FAIL.

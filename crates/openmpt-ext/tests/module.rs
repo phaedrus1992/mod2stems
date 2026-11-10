@@ -91,15 +91,46 @@ fn module_is_send() -> Result<(), String> {
 
 #[test]
 fn load_warning_is_logged() -> Result<(), String> {
-    // A Startrekker AM file with no sample data makes the loader write a warning.
-    let mut module = load(&support::startrekker_am(), &[])?;
+    let mut module = load(&startrekker_am(), &[])?;
     let first = module.take_log();
     if first.is_empty() {
-        return Err("a truncated sample must log a message".to_owned());
+        return Err("a Startrekker file must log a message".to_owned());
     }
     let second = module.take_log();
     if !second.is_empty() {
         return Err(format!("the log must drain, but holds {second:?}"));
     }
     Ok(())
+}
+
+/// Builds an eight-channel Startrekker FLT8 file that starts a warning.
+///
+/// The file names four samples in the pattern but gives no sample data, which the
+/// loader reports as a Startrekker AM file that misses its companion file
+/// (`soundlib/Load_mod.cpp`).
+fn startrekker_am() -> Vec<u8> {
+    let names: [&[u8]; 4] = [b"one", b"two", b"three", b"four"];
+    let mut samples = names
+        .iter()
+        .map(|name| support::sample_with_name(name))
+        .collect::<Vec<_>>();
+    // The loader counts a sample as referenced only when the pattern holds a
+    // sample number for it. Lengths stay zero, so no data follows.
+    for sample in &mut samples {
+        sample.data.clear();
+    }
+    let row = [0, 1, 2, 3].map(|channel| support::Cell {
+        period: 428,
+        sample: channel + 1,
+        effect: 0,
+        param: 0,
+    });
+    support::build_with_magic(
+        &support::ModSpec {
+            rows: vec![row],
+            samples,
+            orders: vec![0],
+        },
+        *b"FLT8",
+    )
 }

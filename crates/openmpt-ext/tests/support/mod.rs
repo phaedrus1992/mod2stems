@@ -36,38 +36,8 @@ pub fn build_mod(spec: &ModSpec) -> Vec<u8> {
     build_with_magic(spec, *b"M.K.")
 }
 
-/// Builds an eight-channel Startrekker FLT8 file that starts a warning.
-///
-/// The file names four samples in the pattern but gives no sample data, which the
-/// loader reports as a Startrekker AM file that misses its companion file
-/// (`soundlib/Load_mod.cpp`).
-pub fn startrekker_am() -> Vec<u8> {
-    let names: [&[u8]; 4] = [b"one", b"two", b"three", b"four"];
-    let samples = names
-        .iter()
-        .map(|name| sample_with_name(name))
-        .collect::<Vec<_>>();
-    let mut spec = ModSpec {
-        rows: Vec::new(),
-        samples,
-        orders: vec![0],
-    };
-    // The loader counts a sample as referenced only when the pattern holds a
-    // sample number for it. Lengths stay zero, so no data follows.
-    spec.rows.push([0, 1, 2, 3].map(|channel| Cell {
-        period: 428,
-        sample: channel + 1,
-        effect: 0,
-        param: 0,
-    }));
-    for sample in &mut spec.samples {
-        sample.data.clear();
-    }
-    build_with_magic(&spec, *b"FLT8")
-}
-
 /// Builds the file bytes with the given four magic bytes.
-fn build_with_magic(spec: &ModSpec, magic: [u8; 4]) -> Vec<u8> {
+pub fn build_with_magic(spec: &ModSpec, magic: [u8; 4]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend([b' '; 20]);
     for slot in 0..SAMPLE_SLOTS {
@@ -166,7 +136,7 @@ pub fn simple_mod() -> Vec<u8> {
 }
 
 /// Returns a sample with a given name and 256 bytes of non-zero data.
-fn sample_with_name(name: &[u8]) -> SampleSpec {
+pub fn sample_with_name(name: &[u8]) -> SampleSpec {
     let mut padded = [0; 22];
     let len = name.len().min(padded.len());
     padded[..len].copy_from_slice(&name[..len]);
