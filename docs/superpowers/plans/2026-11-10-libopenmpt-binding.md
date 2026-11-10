@@ -354,9 +354,9 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 **Files:**
 - Create: `crates/openmpt-ext/tests/fuzz_load.rs`
 
-- [ ] **Step 1:** Write `from_bytes_never_crashes`: `proptest!` with `ProptestConfig { cases: 256, .. }` over `prop::collection::vec(any::<u8>(), 0..8192)`. The assertion: the call returns, either `Ok` or `Err`. Add a second strategy that takes `simple_mod()` and changes up to 16 random bytes, so that the input reaches the MOD loader.
-- [ ] **Step 2:** Run `cargo nextest run -p openmpt-ext fuzz_load`. Expected: PASS.
-- [ ] **Step 3:** Break the code on purpose: make `from_bytes` `unwrap` the core pointer with no null check. Confirm that a test fails. Revert.
+- [ ] **Step 1:** Add `proptest = "=1.12.0"` to the crate's `[dev-dependencies]`. Write `from_bytes_never_crashes`: `proptest!` with `ProptestConfig { cases: 256, .. }` over `prop::collection::vec(any::<u8>(), 0..8192)`. The assertion: the call returns, either `Ok` or `Err`. Add a second strategy that takes `simple_mod()` and changes up to 16 random bytes, so that the input reaches the MOD loader. Add `an_empty_load_fails`, which checks that an empty buffer is an error. The property tests do not catch a missing null check, because the C wrapper frees the failed handle and returns null either way.
+- [ ] **Step 2:** Run `cargo nextest run -p openmpt-ext --test fuzz_load`. Expected: PASS.
+- [ ] **Step 3:** Break the code on purpose: remove the `ext.is_null()` guard from `from_bytes`. Confirm that `empty_bytes_is_error` and `garbage_bytes_is_error` fail. Revert, then touch the source file: a restored file with an older mtime leaves the broken test binary in place.
 - [ ] **Step 4:** Commit: `test(ext): property test module loading`.
 
 ### Task 11: main.rs version print

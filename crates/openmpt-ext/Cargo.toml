@@ -10,5 +10,8 @@ publish.workspace = true
 [dependencies]
 openmpt-ext-sys = { path = "../openmpt-ext-sys", version = "0.0.0" }
 
+[dev-dependencies]
+proptest = "=1.12.0"
+
 [lints]
 workspace = true
