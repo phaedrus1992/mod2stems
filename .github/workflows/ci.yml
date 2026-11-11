@@ -36,7 +36,7 @@ jobs:
           key: ${{ hashFiles('crates/openmpt-ext-sys/build.rs') }}
 
       - name: Install the tools
-        uses: taiki-e/install-action@835cdc15ee7680334982c900847bcafb86487299 # v2.90.3
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: nextest,cargo-deny
 
