@@ -3,6 +3,11 @@
 mod support;
 
 use openmpt_ext::Module;
+use proptest::prelude::any;
+use proptest::prelude::prop_assert_eq;
+use proptest::proptest;
+use proptest::test_runner::Config;
+use proptest::test_runner::TestCaseError;
 
 /// Loads the simple test file.
 fn load() -> Result<Module, String> {
@@ -161,4 +166,28 @@ fn position_advances_by_row() -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+/// Turns a crate or test error into the error that proptest carries.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "a `map_err` function value must take its error by value"
+)]
+fn failed<T: ToString>(error: T) -> TestCaseError {
+    TestCaseError::Fail(error.to_string().into())
+}
+
+proptest! {
+    #![proptest_config(Config { cases: 64, ..Config::default() })]
+
+    /// The gates decide which calls reach the mixer. A rate inside the
+    /// documented range and an even buffer must pass both gates, and any other
+    /// pair must fail one.
+    #[test]
+    fn the_gates_match_the_documented_contract(rate in any::<i32>(), len in 0_usize..4096) {
+        let mut module = load().map_err(failed)?;
+        let mut buf = vec![0.0_f32; len];
+        let wanted = (8000..=192_000).contains(&rate) && len.is_multiple_of(2);
+        prop_assert_eq!(module.read_float(rate, &mut buf).is_ok(), wanted);
+    }
 }

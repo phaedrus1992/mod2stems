@@ -3,6 +3,11 @@
 mod support;
 
 use openmpt_ext::Module;
+use proptest::prelude::prop_assert;
+use proptest::prelude::prop_assert_eq;
+use proptest::proptest;
+use proptest::test_runner::Config;
+use proptest::test_runner::TestCaseError;
 
 /// Loads the simple test file.
 fn load() -> Result<Module, String> {
@@ -192,4 +197,45 @@ fn instrument_out_of_range_is_not_a_channel_index() -> Result<(), String> {
         .set_instrument_mute(channel, true)
         .map_err(|error| format!("sample slot {channel} must be valid: {error}"))?;
     Ok(())
+}
+
+/// Turns a crate or test error into the error that proptest carries.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "a `map_err` function value must take its error by value"
+)]
+fn failed<T: ToString>(error: T) -> TestCaseError {
+    TestCaseError::Fail(error.to_string().into())
+}
+
+proptest! {
+    #![proptest_config(Config { cases: 64, ..Config::default() })]
+
+    /// The library stores the volume as a step count out of 64. Every read
+    /// must therefore land on a step, and it must stay within half a step of
+    /// the value that the caller gave.
+    #[test]
+    fn every_volume_reads_back_on_a_step(volume in 0.0_f64..=1.0) {
+        let mut module = load().map_err(failed)?;
+        module.set_channel_volume(0, volume).map_err(failed)?;
+        let read = module.channel_volume(0).map_err(failed)?;
+        // The library rounds to a whole step, so the exact compare is intended.
+        #[expect(clippy::float_cmp, reason = "a step count is an exact multiple")]
+        {
+            prop_assert!(read * 64.0 == (read * 64.0).round());
+        }
+        prop_assert!((read - volume).abs() <= 1.0 / 128.0);
+    }
+
+    /// The gate accepts a volume exactly when it is finite and in the closed
+    /// range. A value outside the range never reaches the library.
+    #[test]
+    fn the_volume_gate_matches_the_documented_range(
+        volume in proptest::prelude::any::<f64>(),
+        channel in 0_i32..4,
+    ) {
+        let mut module = load().map_err(failed)?;
+        let wanted = volume.is_finite() && (0.0..=1.0).contains(&volume);
+        prop_assert_eq!(module.set_channel_volume(channel, volume).is_ok(), wanted);
+    }
 }
