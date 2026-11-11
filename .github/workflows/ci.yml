@@ -29,6 +29,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # A fresh checkout gives `build.rs` and `wrapper.h` the current time.
+      # Cargo compares their mtimes with the restored artifacts and reruns the
+      # build script, so `target/` alone cannot keep a warm run from compiling
+      # the C++ tree again. This content-addressed cache does keep it.
+      - name: Cache the C++ objects
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          disable_annotations: true
+
+      - name: Enable sccache
+        run: |
+          set -euo pipefail
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
         with:

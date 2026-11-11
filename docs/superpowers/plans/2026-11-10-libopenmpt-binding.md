@@ -410,6 +410,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - [ ] **Step 6:** Add a "Build" section to `README.md` (one sentence per line): clone with `--recurse-submodules` or run `git submodule update --init --depth 1`, then `cargo build`. A C++17 compiler is required (on macOS, the Xcode command line tools). Also add a "License" section: `Apache-2.0`, with libopenmpt and the decoders under their own licenses in `crates/openmpt-ext-sys/LICENSES/`.
 - [ ] **Step 7:** Commit: `ci: add macOS and Linux CI with cached libopenmpt build` and `docs(readme): add build and license sections` (two commits).
 - [ ] **Step 8:** After the push, check the second CI run's log: the `openmpt-ext-sys` build step must show no C++ compile (the cache hit). If it compiles again, fix the cache key or the cache settings before the PR is done.
+- [ ] **Step 9:** When Step 8 fails, the cause is the mtime check: a fresh checkout writes `build.rs` and `wrapper.h` with the current time, so cargo reruns the build script even with a warm `target/`. Add `mozilla-actions/sccache-action` and export `SCCACHE_GHA_ENABLED=true` and `RUSTC_WRAPPER=sccache`. Check the second run: the job log must show sccache hit counts for the C++ objects.
 
 ### Task 14: Design doc and issue updates
 
