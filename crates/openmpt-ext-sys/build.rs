@@ -138,8 +138,8 @@ fn emit_pin(wrapper: &Path) {
     println!("cargo:rustc-env=OPENMPT_EXT_SYS_PIN_SVN_REVISION={PIN_SVN_REVISION}");
     println!("cargo:rustc-env=OPENMPT_EXT_SYS_PIN_SVN_URL={PIN_SVN_URL}");
     println!("cargo:rustc-env=OPENMPT_EXT_SYS_PIN_SVN_DATE={PIN_SVN_DATE}");
-    // The vendored sources never change between pins. A change to them comes
-    // with a change to this file, so only the wrapper needs a watch.
-    println!("cargo:rerun-if-changed=build.rs");
+    // The vendored sources only change with a pin bump, and `scripts/bump-libopenmpt.sh`
+    // rewrites this file in the same step. Cargo always reruns a build script when
+    // the script itself changes, so only the wrapper needs its own watch.
     println!("cargo:rerun-if-changed={}", wrapper.display());
 }

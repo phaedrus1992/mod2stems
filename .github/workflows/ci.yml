@@ -52,8 +52,10 @@ jobs:
       - name: Check the licenses and the sources
         run: cargo deny check
 
-      - name: Check the package file list
-        run: cargo package --list -p openmpt-ext-sys --allow-dirty
+      # A list check passes while the crate still fails to compile. Build the
+      # packaged tree, so a missing file in `include` fails here.
+      - name: Build the packaged crates
+        run: cargo package -p openmpt-ext-sys --allow-dirty
 
       - name: Build the release command
         run: cargo build --release --bin mod2stems
