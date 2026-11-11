@@ -39,6 +39,14 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[lib]
+name = "mod2stems"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mod2stems"
+path = "src/main.rs"
+
 [dependencies]
 openmpt-ext = { path = "crates/openmpt-ext", version = "0.0.0" }
 
