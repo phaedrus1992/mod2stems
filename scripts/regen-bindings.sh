@@ -17,8 +17,10 @@ VENDOR="$SYS_CRATE/vendor/openmpt"
 WRAPPER="$SYS_CRATE/wrapper.h"
 OUTPUT="$SYS_CRATE/src/bindings.rs"
 
+# Prints the comment header. It stops at the first line that is not a comment,
+# so a header edit cannot leak a shell statement into the help text.
 usage() {
-	sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+	awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
 }
 
 die() {

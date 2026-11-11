@@ -15,8 +15,10 @@
 # first write.
 set -euo pipefail
 
+# Prints the comment header. It stops at the first line that is not a comment,
+# so a header edit cannot leak a shell statement into the help text.
 usage() {
-	sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+	awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
 }
 
 die() {
@@ -67,7 +69,9 @@ git -C "$VENDOR" checkout --quiet --force --detach "refs/tags/$tag" ||
 
 new_commit="$(git -C "$VENDOR" rev-parse HEAD)"
 message="$(git -C "$VENDOR" log -1 --format=%B)"
-svn_line="$(grep -F 'git-svn-id:' <<<"$message" | head -n 1)"
+# A commit with no git-svn-id line makes grep exit 1. Under `pipefail` that
+# aborts the script before the guard below can name the cause.
+svn_line="$(grep -F 'git-svn-id:' <<<"$message" | head -n 1)" || svn_line=""
 [[ -n "$svn_line" ]] || die "the commit $new_commit holds no git-svn-id line. The revision is not known."
 svn_id="${svn_line##*git-svn-id: }"
 svn_id="${svn_id%% *}"
