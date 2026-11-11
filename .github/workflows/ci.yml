@@ -61,6 +61,12 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # The plan requires a warm run with no C++ compile. This step makes the
+      # result of the content cache visible in the log, so the requirement has
+      # a check and not only a claim.
+      - name: Report the sccache statistics
+        run: '"$SCCACHE_PATH" --show-stats'
+
       - name: Run the tests
         run: cargo nextest run --workspace
 
