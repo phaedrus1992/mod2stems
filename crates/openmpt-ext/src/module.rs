@@ -18,6 +18,7 @@ use openmpt_ext_sys::openmpt_module_ext_interface_interactive;
 use openmpt_ext_sys::openmpt_module_initial_ctl;
 
 use crate::cstr::LibString;
+use crate::cstr::take_required;
 use crate::error::OpenmptError;
 use crate::error::Result;
 use crate::initial_ctl::InitialCtl;
@@ -239,8 +240,14 @@ fn check_ctl_keys(
     sink: &RefCell<Vec<String>>,
 ) -> Result<HashSet<String>> {
     // SAFETY: the handle is live. The list is owned by the caller.
-    let list = LibString::take(unsafe { openmpt_ext_sys::openmpt_module_get_ctls(core) })
-        .unwrap_or_default();
+    let ptr = unsafe { openmpt_ext_sys::openmpt_module_get_ctls(core) };
+    let list = match take_required(ptr, "ctl list", "this module") {
+        Ok(list) => list,
+        Err(mut error) => {
+            error.log = std::mem::take(&mut *sink.borrow_mut());
+            return Err(error);
+        }
+    };
     let known: HashSet<String> = list.split(';').map(str::to_owned).collect();
     for ctl in ctls {
         if known.contains(&ctl.key) {
