@@ -10,15 +10,19 @@ pub mod config;
 pub mod error;
 pub mod kind;
 pub mod model;
+pub mod render;
 pub mod request;
 pub mod settings;
 
 pub use amiga::AmigaVerdict;
+pub use amiga::require_deterministic;
 pub use amiga::verify_amiga_applies;
 pub use config::ProfileConfig;
 pub use error::ProfileError;
 pub use kind::Profile;
 pub use model::AmigaModel;
+pub use render::DEFAULT_MAX_RENDER_SECONDS;
+pub use render::read_pass;
 pub use request::ProfileRequest;
 pub use settings::ResolvedSettings;
 
@@ -34,8 +38,3 @@ pub const DEFAULT_OUTPUT_RATE: i32 = 48_000;
 /// the same mode. The named length is explicit, so the resolved config records
 /// a value that is not the "unset" of 0.
 pub const WINDOWED_SINC_FILTER_LENGTH: i32 = 8;
-
-/// The volume ramping value that keeps the library default.
-///
-/// A value of -1 selects the library's recommended ramping strength.
-pub const LIBRARY_DEFAULT_VOLUME_RAMPING: i32 = -1;

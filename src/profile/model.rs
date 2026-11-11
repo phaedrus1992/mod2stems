@@ -12,7 +12,7 @@ pub enum AmigaModel {
 }
 
 impl AmigaModel {
-    /// Returns the CLI spelling of the model.
+    /// Returns the CLI spelling of the model, which is also the ctl value.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -20,11 +20,5 @@ impl AmigaModel {
             Self::A1200 => "a1200",
             Self::Unfiltered => "unfiltered",
         }
-    }
-
-    /// Returns the value that the library ctl accepts.
-    #[must_use]
-    pub fn ctl_value(self) -> &'static str {
-        self.as_str()
     }
 }

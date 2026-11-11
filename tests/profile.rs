@@ -1,7 +1,8 @@
 //! Tests the rendering profiles and the output rate resolution.
 //!
 //! The checks cover the resolution rules that `docs/design.md` §2 states, and
-//! the Amiga applicability rule from `docs/design/pre-implementation-validation.md` §6.
+//! the Amiga applicability rule from `docs/design/pre-implementation-validation.md`
+//! §1 and §6. `tests/profile_properties.rs` holds the property tests.
 
 use mod2stems::AmigaModel;
 use mod2stems::DEFAULT_OUTPUT_RATE;
@@ -10,6 +11,7 @@ use mod2stems::ProfileConfig;
 use mod2stems::ProfileError;
 use mod2stems::ProfileRequest;
 use mod2stems::profile::AmigaVerdict;
+use mod2stems::profile::require_deterministic;
 use mod2stems::profile::verify_amiga_applies;
 
 /// Resolves one request that must succeed.
@@ -146,21 +148,19 @@ fn amiga_with_a_model_enables_emulation() -> Result<(), String> {
 }
 
 #[test]
-fn amiga_rejects_an_explicit_interpolation_length() -> Result<(), String> {
-    let error = resolve_err(
-        ProfileRequest::amiga(Some(AmigaModel::A1200)).with_interpolation_filter_length(2),
-    )?;
-    if !matches!(error, ProfileError::ConflictingSettings { .. }) {
+fn compatible_rejects_an_amiga_model() -> Result<(), String> {
+    let error = resolve_err(ProfileRequest::default().with_amiga_model(AmigaModel::A500))?;
+    if !matches!(error, ProfileError::UnexpectedAmigaModel { .. }) {
         return Err(format!(
-            "the error is {error:?}, expected ConflictingSettings"
+            "the error is {error:?}, expected UnexpectedAmigaModel"
         ));
     }
     Ok(())
 }
 
 #[test]
-fn compatible_rejects_an_amiga_model() -> Result<(), String> {
-    let error = resolve_err(ProfileRequest::default().with_amiga_model(AmigaModel::A500))?;
+fn clean_rejects_an_amiga_model() -> Result<(), String> {
+    let error = resolve_err(ProfileRequest::clean().with_amiga_model(AmigaModel::A1200))?;
     if !matches!(error, ProfileError::UnexpectedAmigaModel { .. }) {
         return Err(format!(
             "the error is {error:?}, expected UnexpectedAmigaModel"
@@ -193,6 +193,20 @@ fn a_rate_above_the_renderer_range_fails() -> Result<(), String> {
 }
 
 #[test]
+fn the_range_ends_are_inclusive() -> Result<(), String> {
+    for rate in [8_000, 192_000] {
+        let config = resolve(ProfileRequest::default().with_rate(rate))?;
+        if config.rate() != rate {
+            return Err(format!(
+                "the config rate is {}, expected {rate}",
+                config.rate()
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn an_explicit_rate_reaches_the_config() -> Result<(), String> {
     let config = resolve(ProfileRequest::default().with_rate(44_100))?;
     if config.rate() != 44_100 {
@@ -216,10 +230,10 @@ fn profile_names_round_trip() -> Result<(), String> {
 }
 
 #[test]
-fn an_unknown_profile_name_fails() -> Result<(), String> {
+fn an_unknown_profile_name_keeps_the_text() -> Result<(), String> {
     match Profile::parse("hardware") {
         Ok(profile) => Err(format!("the name parsed to {profile:?}")),
-        Err(ProfileError::UnknownName { .. }) => Ok(()),
+        Err(ProfileError::UnknownName { name }) if name == "hardware" => Ok(()),
         Err(error) => Err(format!("the error is {error:?}, expected UnknownName")),
     }
 }
@@ -269,4 +283,49 @@ fn a_single_differing_sample_is_enough() -> Result<(), String> {
         return Err(format!("the verdict is {verdict:?}, expected Applies"));
     }
     Ok(())
+}
+
+#[test]
+fn a_nan_pair_counts_as_identical() -> Result<(), String> {
+    // Value equality reports a NaN as different from itself. Two renders that
+    // hold the same NaN pattern took the same path, so the bits must decide.
+    let warm = [f32::NAN, 0.5];
+    let cool = [f32::NAN, 0.5];
+    let verdict = compare(&warm, &cool)?;
+    if verdict != AmigaVerdict::DoesNotApply {
+        return Err(format!("the verdict is {verdict:?}, expected DoesNotApply"));
+    }
+    Ok(())
+}
+
+#[test]
+fn a_signed_zero_pair_counts_as_different() -> Result<(), String> {
+    // `0.0` and `-0.0` compare equal as values, but the mixer wrote different
+    // bits, so the two renders took different paths.
+    let positive = [0.0_f32, 0.5];
+    let negative = [-0.0_f32, 0.5];
+    let verdict = compare(&positive, &negative)?;
+    if verdict != AmigaVerdict::Applies {
+        return Err(format!("the verdict is {verdict:?}, expected Applies"));
+    }
+    Ok(())
+}
+
+#[test]
+fn two_plain_renders_that_differ_are_reported_as_random() -> Result<(), String> {
+    let first = [0.0_f32, 0.5, 0.25];
+    let second = [0.0_f32, 0.5, 0.75];
+    match require_deterministic(&first, &second) {
+        Ok(()) => Err("the two renders differ, but the check called them equal".to_owned()),
+        Err(ProfileError::Nondeterministic { sample: 2 }) => Ok(()),
+        Err(error) => Err(format!(
+            "the error is {error:?}, expected Nondeterministic at sample 2"
+        )),
+    }
+}
+
+#[test]
+fn two_plain_renders_that_match_are_deterministic() -> Result<(), String> {
+    let first = [0.0_f32, 0.5, 0.25];
+    require_deterministic(&first, &first).map_err(|error| error.to_string())
 }

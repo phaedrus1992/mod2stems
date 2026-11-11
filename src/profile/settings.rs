@@ -3,7 +3,6 @@
 use openmpt_ext::RenderParam;
 
 use crate::profile::AmigaModel;
-use crate::profile::Profile;
 use crate::profile::config::ProfileConfig;
 
 /// The playback settings that a profile names.
@@ -11,12 +10,16 @@ use crate::profile::config::ProfileConfig;
 /// A `None` field keeps the library default for that setting. The struct holds
 /// only the settings that a profile can change, so the resolved config stays
 /// small and a new setting is one field, not a parallel record.
+///
+/// The fields are private. A caller reaches a config through
+/// [`crate::ProfileRequest::resolve`], which rejects a conflicting combination
+/// before a render starts. A public field would let a caller build the Amiga
+/// model and an interpolation length together, and the library applies the
+/// model and ignores the length for that pair.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedSettings {
-    /// The Amiga filter model, when the `amiga` profile names one.
-    pub amiga_model: Option<AmigaModel>,
-    /// The interpolation filter length, when a profile names one.
-    pub interpolation_filter_length: Option<i32>,
+    amiga_model: Option<AmigaModel>,
+    interpolation_filter_length: Option<i32>,
 }
 
 impl ResolvedSettings {
@@ -50,6 +53,18 @@ impl ResolvedSettings {
         }
     }
 
+    /// Returns the Amiga filter model, when the profile names one.
+    #[must_use]
+    pub fn amiga_model(&self) -> Option<AmigaModel> {
+        self.amiga_model
+    }
+
+    /// Returns the interpolation filter length, when the profile names one.
+    #[must_use]
+    pub fn interpolation_filter_length(&self) -> Option<i32> {
+        self.interpolation_filter_length
+    }
+
     /// Returns the interpolated render params, in the order to set them.
     ///
     /// The list is empty for a profile that changes no render param.
@@ -63,7 +78,7 @@ impl ResolvedSettings {
 
     /// Builds the config that carries these settings.
     #[must_use]
-    pub fn into_config(self, profile: Profile, rate: i32) -> ProfileConfig {
+    pub(crate) fn into_config(self, profile: crate::profile::Profile, rate: i32) -> ProfileConfig {
         ProfileConfig::new(profile, rate, self)
     }
 }

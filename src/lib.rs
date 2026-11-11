@@ -7,8 +7,8 @@
 pub mod profile;
 
 pub use profile::AmigaModel;
+pub use profile::DEFAULT_MAX_RENDER_SECONDS;
 pub use profile::DEFAULT_OUTPUT_RATE;
-pub use profile::LIBRARY_DEFAULT_VOLUME_RAMPING;
 pub use profile::Profile;
 pub use profile::ProfileConfig;
 pub use profile::ProfileError;

@@ -41,19 +41,22 @@ impl ProfileConfig {
     /// Returns the Amiga filter model, when the profile names one.
     #[must_use]
     pub fn amiga_model(&self) -> Option<AmigaModel> {
-        self.settings.amiga_model
+        self.settings.amiga_model()
     }
 
-    /// Reports whether the profile enables Amiga emulation.
+    /// Reports whether the profile turns Amiga emulation on.
+    ///
+    /// The resolver never builds a settings value that holds an interpolation
+    /// length next to a model, so the model alone decides this.
     #[must_use]
     pub fn amiga_enabled(&self) -> bool {
-        self.settings.amiga_model.is_some()
+        self.settings.amiga_model().is_some()
     }
 
     /// Returns the interpolation filter length, when the profile names one.
     #[must_use]
     pub fn interpolation_filter_length(&self) -> Option<i32> {
-        self.settings.interpolation_filter_length
+        self.settings.interpolation_filter_length()
     }
 
     /// Returns the settings that this config carries.

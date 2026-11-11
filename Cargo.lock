@@ -208,6 +208,7 @@ name = "mod2stems"
 version = "0.0.0"
 dependencies = [
  "openmpt-ext",
+ "proptest",
 ]
 
 [[package]]

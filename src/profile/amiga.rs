@@ -7,24 +7,15 @@
 //!
 //! The profile therefore proves applicability by comparison: render the module
 //! with emulation off and on, and require the two renders to differ.
-//! The "off" side is the unmuted trace render that the pipeline already makes,
-//! so the check costs one extra single-track render.
 //! Design: `docs/design/pre-implementation-validation.md` §6.
+//!
+//! The comparison needs a baseline first. The library seeds the random state of
+//! each instance from a process-wide generator, and no C API sets the seed, so
+//! a randomized module renders differently on every instance
+//! (`docs/design/pre-implementation-validation.md` §1). Two plain renders detect
+//! that condition, and the check reports it instead of a verdict.
 
-use openmpt_ext::Module;
-
-use crate::profile::AmigaModel;
 use crate::profile::ProfileError;
-use crate::profile::apply::AMIGA_CTL;
-use crate::profile::apply::AMIGA_TYPE_CTL;
-use crate::profile::apply::missing_control;
-
-/// The frames that one detection read requests.
-///
-/// A larger block lowers the call count. A smaller block lets the song end
-/// land closer to the true frame count, which keeps the two passes equal when
-/// the song has a fractional block.
-const DETECTION_BLOCK_FRAMES: usize = 4800;
 
 /// What the comparison of two renders shows about Amiga emulation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,19 +28,20 @@ pub enum AmigaVerdict {
 
 /// Compares a plain render with an emulated render of the same module.
 ///
-/// `plain` is the render with Amiga emulation off, and `emulated` is the render
-/// with it on. Both renders start from the beginning of the same song, with the
-/// same rate and the same controls, so a difference in the samples is the only
-/// thing that can separate them.
+/// `plain` is the baseline render, made with Amiga emulation off, and
+/// `emulated` is the render with it on. Both renders start from the beginning
+/// of the same song, with the same rate and the same controls.
 ///
-/// The comparison is exact. A module that does not use the Amiga resampler
-/// takes the same code path in both renders, so the samples are bit-identical.
+/// The comparison is exact, by sample bits. A module that does not use the
+/// Amiga resampler takes the same code path in both renders, so the samples
+/// are bit-identical. Value equality would report a NaN pair as a difference
+/// and a `0.0`/`-0.0` pair as a match, and neither is a reason to decide a
+/// profile.
 ///
 /// # Errors
 ///
 /// Returns an error when the two renders differ in length, because a length
-/// difference means the two renders did not use the same settings. It is not
-/// evidence that the profile applies.
+/// difference means the two renders did not use the same settings.
 pub fn verify_amiga_applies(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerdict, ProfileError> {
     if plain.len() != emulated.len() {
         return Err(ProfileError::AmigaComparisonLength {
@@ -57,71 +49,42 @@ pub fn verify_amiga_applies(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerd
             emulated: emulated.len(),
         });
     }
-    if plain == emulated {
+    if same_samples(plain, emulated) {
         return Ok(AmigaVerdict::DoesNotApply);
     }
     Ok(AmigaVerdict::Applies)
 }
 
-/// Reads one whole song with the given Amiga emulation setting.
+/// Reports whether two renders hold the same samples, bit for bit.
+fn same_samples(left: &[f32], right: &[f32]) -> bool {
+    left.iter()
+        .zip(right)
+        .all(|(a, b)| a.to_bits() == b.to_bits())
+}
+
+/// Returns the index of the first sample that two renders do not share.
 ///
-/// `model` is `None` for a plain pass, and `Some(model)` for an emulated pass.
-/// The module must be at the start of the song, which it is after a load. The
-/// read stops at the song end.
+/// The baseline render must match the second plain render, or the module reads
+/// random state.
 ///
 /// # Errors
 ///
-/// Returns an error when an emulated pass meets a module that lacks a control
-/// that the pass needs, or when a library call fails.
-pub fn read_pass(
-    module: &mut Module,
-    rate: i32,
-    model: Option<AmigaModel>,
-) -> Result<Vec<f32>, ProfileError> {
-    match model {
-        Some(model) => enable_emulation(module, model)?,
-        None => module
-            .ctl_set_bool(AMIGA_CTL, false)
-            .map_err(|error| library_error(&error))?,
+/// Returns [`ProfileError::Nondeterministic`] with the index of the first
+/// difference when the two renders differ. The caller reports that error, and
+/// it does not treat the module as Amiga or as deterministic.
+pub fn require_deterministic(first: &[f32], second: &[f32]) -> Result<(), ProfileError> {
+    if first.len() != second.len() {
+        return Err(ProfileError::AmigaComparisonLength {
+            plain: first.len(),
+            emulated: second.len(),
+        });
     }
-    let mut out = Vec::new();
-    let mut buf = vec![0.0_f32; DETECTION_BLOCK_FRAMES * 2];
-    loop {
-        let frames = module
-            .read_float(rate, &mut buf)
-            .map_err(|error| library_error(&error))?;
-        if frames == 0 {
-            break;
-        }
-        // The library writes only `frames` frames. The tail of the buffer
-        // still holds the previous block, so a copy of the whole buffer would
-        // compare stale samples.
-        let written = frames.saturating_mul(2);
-        out.extend_from_slice(&buf[..written]);
-    }
-    Ok(out)
-}
-
-/// Turns Amiga emulation on with the named model.
-///
-/// The model goes in first. The library applies the model only while emulation
-/// is already on, so the reverse order would leave the default model in place.
-fn enable_emulation(module: &mut Module, model: AmigaModel) -> Result<(), ProfileError> {
-    if let Some(key) = missing_control(module.ctls(), &[AMIGA_CTL, AMIGA_TYPE_CTL]) {
-        return Err(ProfileError::MissingControl { key });
-    }
-    module
-        .ctl_set_text(AMIGA_TYPE_CTL, model.ctl_value())
-        .map_err(|error| library_error(&error))?;
-    module
-        .ctl_set_bool(AMIGA_CTL, true)
-        .map_err(|error| library_error(&error))
-}
-
-/// Wraps a library error with the operation that failed.
-fn library_error(error: &openmpt_ext::OpenmptError) -> ProfileError {
-    ProfileError::Library {
-        operation: "the Amiga applicability check",
-        message: error.to_string(),
+    match first
+        .iter()
+        .zip(second)
+        .position(|(a, b)| a.to_bits() != b.to_bits())
+    {
+        None => Ok(()),
+        Some(sample) => Err(ProfileError::Nondeterministic { sample }),
     }
 }
