@@ -32,7 +32,7 @@ similar_names = "allow"
 
 [package]
 name = "mod2stems"
-version = "0.0.0"
+version = "0.1.0"
 description = "Exports per-channel stems from tracker modules"
 edition.workspace = true
 license.workspace = true
