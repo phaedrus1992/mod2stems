@@ -80,6 +80,53 @@ fn pin_revision_matches_git_svn_id() -> Result<(), String> {
 }
 
 #[test]
+fn pin_url_and_date_match_the_vendor_commit() -> Result<(), String> {
+    let vendor = vendor();
+    if !has_git(&vendor) {
+        skip("vendor/openmpt is not a git checkout");
+        return Ok(());
+    }
+    let message = git(&vendor, &["log", "-1", "--format=%B"])
+        .ok_or_else(|| "cannot run git log in vendor/openmpt".to_owned())?;
+    // The build passes this URL to the library as `MPT_SVNURL`, so a stale pin
+    // makes the library report the wrong source.
+    if !message.contains(openmpt_ext_sys::PIN_SVN_URL) {
+        return Err(format!(
+            "the vendor commit message does not name the URL {}",
+            openmpt_ext_sys::PIN_SVN_URL
+        ));
+    }
+    let date = git(&vendor, &["log", "-1", "--format=%cI"])
+        .ok_or_else(|| "cannot run git log in vendor/openmpt".to_owned())?;
+    check("vendor commit date", &date, openmpt_ext_sys::PIN_SVN_DATE)
+}
+
+#[test]
+fn pin_tag_names_the_vendor_commit() -> Result<(), String> {
+    let vendor = vendor();
+    if !has_git(&vendor) {
+        skip("vendor/openmpt is not a git checkout");
+        return Ok(());
+    }
+    let tags = git(&vendor, &["tag", "--points-at", "HEAD"])
+        .ok_or_else(|| "cannot run git tag in vendor/openmpt".to_owned())?;
+    // A shallow submodule clone can hold no tags. The check is only possible
+    // when the clone holds them.
+    if tags.is_empty() {
+        skip("vendor/openmpt holds no tags");
+        return Ok(());
+    }
+    if tags.lines().any(|tag| tag == openmpt_ext_sys::PIN_TAG) {
+        Ok(())
+    } else {
+        Err(format!(
+            "the vendor commit is tagged {tags:?}, not {:?}",
+            openmpt_ext_sys::PIN_TAG
+        ))
+    }
+}
+
+#[test]
 fn license_files_exist() -> Result<(), String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("LICENSES");
     for name in [
