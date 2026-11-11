@@ -46,16 +46,28 @@ proptest! {
     fn from_bytes_never_crashes(bytes in vec(any::<u8>(), 0..8192)) {
         // A load either succeeds or fails. A crash, a hang, or an unwind
         // fails the test.
-        let result = Module::from_bytes(&bytes, &[]);
-        prop_assert!(result.is_ok() || result.is_err());
+        let module = match Module::from_bytes(&bytes, &[]) {
+            Ok(module) => module,
+            Err(error) => {
+                prop_assert!(!error.message.is_empty());
+                return Ok(());
+            }
+        };
+        prop_assert!(module.num_channels() >= 0);
     }
 
     #[test]
     fn mutated_mod_never_crashes(seed in any::<u64>(), count in 0_usize..17) {
         let bytes = support::simple_mod();
         let mutated = mutate_mod(&bytes, seed, count);
-        let result = Module::from_bytes(&mutated, &[]);
-        prop_assert!(result.is_ok() || result.is_err());
+        let module = match Module::from_bytes(&mutated, &[]) {
+            Ok(module) => module,
+            Err(error) => {
+                prop_assert!(!error.message.is_empty());
+                return Ok(());
+            }
+        };
+        prop_assert!(module.num_channels() >= 0);
     }
 
     #[test]

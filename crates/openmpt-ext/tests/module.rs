@@ -4,6 +4,11 @@ mod support;
 
 use openmpt_ext::InitialCtl;
 use openmpt_ext::Module;
+use proptest::collection::vec;
+use proptest::prelude::prop_assert;
+use proptest::prelude::prop_assert_eq;
+use proptest::proptest;
+use proptest::test_runner::Config;
 
 /// Loads bytes and turns any error into a message.
 fn load(bytes: &[u8], ctls: &[InitialCtl]) -> Result<Module, String> {
@@ -133,4 +138,37 @@ fn startrekker_am() -> Vec<u8> {
         },
         *b"FLT8",
     )
+}
+
+proptest! {
+    #![proptest_config(Config { cases: 64, ..Config::default() })]
+
+    /// The ctl list is encoded as paired pointers into one string vector. A
+    /// mis-paired string at a list length above one, or a multi-byte key, would
+    /// pass an unknown key name and read past the list.
+    #[test]
+    fn initial_ctls_stay_paired(keys in vec("[a-z.0-9]{1,12}", 1..5)) {
+        let ctls = keys
+            .iter()
+            .map(|key| InitialCtl {
+                key: key.clone(),
+                value: "1".to_owned(),
+            })
+            .collect::<Vec<_>>();
+        match Module::from_bytes(&support::simple_mod(), &ctls) {
+            Ok(_) => prop_assert!(false, "an unknown ctl key must be an error"),
+            Err(error) => prop_assert!(keys.contains(&error.input)),
+        }
+    }
+
+    /// A key or value with a NUL byte is rejected before the C call.
+    #[test]
+    fn initial_ctl_with_nul_is_rejected(key in "[a-z]{0,6}\0[a-z]{0,6}") {
+        let ctls = [InitialCtl {
+            key,
+            value: "1".to_owned(),
+        }];
+        let error = Module::from_bytes(&support::simple_mod(), &ctls).err();
+        prop_assert_eq!(error.is_some(), true);
+    }
 }

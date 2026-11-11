@@ -81,3 +81,37 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod properties {
+    use super::LibString;
+    use proptest::collection::vec;
+    use proptest::prelude::any;
+    use proptest::prelude::prop_assert;
+    use proptest::prelude::prop_assert_eq;
+    use proptest::proptest;
+    use std::ffi::CString;
+
+    proptest! {
+        /// A module file controls these bytes, so the decoder must agree with
+        /// `from_utf8_lossy` at every byte value, not only for ASCII.
+        #[test]
+        fn take_decodes_like_from_utf8_lossy(bytes in vec(1_u8..=255, 0..64)) {
+            // `CString::new` rejects a NUL, so the draw starts at 1.
+            let source = CString::new(bytes.clone()).unwrap_or_default();
+            let taken = LibString::take(source.into_raw());
+            let expected = String::from_utf8_lossy(&bytes);
+            prop_assert_eq!(taken.as_deref(), Some(expected.as_ref()));
+        }
+
+        /// A NUL byte anywhere in the input is the only value that a C string
+        /// cannot hold.
+        #[test]
+        fn take_handles_every_byte_value(bytes in vec(any::<u8>(), 0..64)) {
+            let Ok(source) = CString::new(bytes) else {
+                return Ok(());
+            };
+            prop_assert!(LibString::take(source.into_raw()).is_some());
+        }
+    }
+}
