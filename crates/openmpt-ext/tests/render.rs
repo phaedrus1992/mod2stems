@@ -119,6 +119,22 @@ fn bad_rate_is_error() -> Result<(), String> {
 }
 
 #[test]
+fn the_range_ends_are_inclusive() -> Result<(), String> {
+    let mut buf = vec![0.0_f32; 1024];
+    for rate in [7999, 8000, 192_000, 192_001] {
+        let mut module = load()?;
+        let inside = (8000..=192_000).contains(&rate);
+        let result = module.read_float(rate, &mut buf);
+        if result.is_ok() != inside {
+            return Err(format!(
+                "rate {rate} gave {result:?}, expected {inside} from the range 8000..=192000"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn position_advances_by_row() -> Result<(), String> {
     let mut module = load()?;
     module

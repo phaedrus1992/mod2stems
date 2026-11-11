@@ -236,3 +236,32 @@ pub(crate) fn check_index(op: &'static str, kind: &str, index: i32, count: i32) 
         Some("read the count first, and use an index below it"),
     ))
 }
+
+#[cfg(test)]
+mod properties {
+    use super::check_index;
+    use proptest::prelude::Strategy;
+    use proptest::prelude::any;
+    use proptest::prelude::prop_assert;
+    use proptest::prelude::prop_assert_eq;
+    use proptest::proptest;
+
+    proptest! {
+        /// The gate is the only bounds check on every index that reaches a C
+        /// call, so it must accept exactly `0..count` at both ends.
+        #[test]
+        fn check_index_accepts_exactly_the_half_open_range(count in 0_i32.., index in any::<i32>()) {
+            let wanted = (0..count).contains(&index);
+            prop_assert_eq!(check_index("op", "kind", index, count).is_ok(), wanted);
+        }
+
+        /// A negative count cannot describe a valid index.
+        #[test]
+        fn check_index_rejects_every_index_when_count_is_negative(
+            count in any::<i32>().prop_filter("a negative count", |count| *count < 0),
+            index in any::<i32>(),
+        ) {
+            prop_assert!(check_index("op", "kind", index, count).is_err());
+        }
+    }
+}

@@ -187,3 +187,37 @@ fn check_volume(volume: f64) -> Result<()> {
         Some("use a volume in 0.0..=1.0, where 0.0 is silent"),
     ))
 }
+
+#[cfg(test)]
+mod properties {
+    use super::check_volume;
+    use proptest::prelude::any;
+    use proptest::prelude::prop_assert;
+    use proptest::prelude::prop_assert_eq;
+    use proptest::proptest;
+
+    proptest! {
+        /// The gate decides which volumes reach the mixer. It must accept
+        /// exactly the finite values in the closed range that the library
+        /// documents.
+        #[test]
+        fn check_volume_accepts_exactly_the_finite_closed_range(volume in any::<f64>()) {
+            let wanted = volume.is_finite() && (0.0..=1.0).contains(&volume);
+            prop_assert_eq!(check_volume(volume).is_ok(), wanted);
+        }
+
+        /// The ends of the range are valid values, and the values just outside
+        /// it are not.
+        #[test]
+        fn check_volume_pins_the_range_ends(offset in -1.0_f64..1.0) {
+            let inside = |value: f64| (0.0..=1.0).contains(&value);
+            for edge in [0.0_f64, 1.0] {
+                prop_assert_eq!(check_volume(edge).is_ok(), true);
+                let outside = edge + offset.signum() * 0.5;
+                if !inside(outside) {
+                    prop_assert!(check_volume(outside).is_err());
+                }
+            }
+        }
+    }
+}

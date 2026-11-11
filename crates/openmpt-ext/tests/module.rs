@@ -161,6 +161,39 @@ proptest! {
         }
     }
 
+    /// A known key in front of an unknown one must not hide the unknown key.
+    #[test]
+    fn a_known_ctl_before_an_unknown_one_still_errors(unknown in "[a-ce-z0-9.]{1,12}") {
+        let ctls = [
+            InitialCtl {
+                key: "load.skip_samples".to_owned(),
+                value: "1".to_owned(),
+            },
+            InitialCtl {
+                key: unknown.clone(),
+                value: "2".to_owned(),
+            },
+        ];
+        match Module::from_bytes(&support::simple_mod(), &ctls) {
+            Ok(_) => prop_assert!(false, "an unknown ctl key must be an error"),
+            Err(error) => prop_assert_eq!(error.input, unknown),
+        }
+    }
+
+    /// libopenmpt strips a trailing `!` or `?` from the key, so this crate
+    /// rejects such a key under its own name.
+    #[test]
+    fn a_ctl_key_with_a_modifier_suffix_is_rejected(suffix in "[!?]") {
+        let ctls = [InitialCtl {
+            key: format!("load.skip_samples{suffix}"),
+            value: "1".to_owned(),
+        }];
+        match Module::from_bytes(&support::simple_mod(), &ctls) {
+            Ok(_) => prop_assert!(false, "a ctl key with a suffix must be an error"),
+            Err(error) => prop_assert_eq!(error.input, format!("load.skip_samples{suffix}")),
+        }
+    }
+
     /// A key or value with a NUL byte is rejected before the C call.
     #[test]
     fn initial_ctl_with_nul_is_rejected(key in "[a-z]{0,6}\0[a-z]{0,6}") {

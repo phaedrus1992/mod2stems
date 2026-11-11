@@ -291,6 +291,7 @@ impl EncodedCtls {
         let mut strings = Vec::with_capacity(ctls.len() * 2);
         let mut pairs = Vec::with_capacity(ctls.len() + 1);
         for ctl in ctls {
+            check_ctl_key(&ctl.key)?;
             // Each push reallocates the vector, so the pointers are taken only
             // after every string is in place. `strings` never moves again.
             strings.push(to_cstring(&ctl.key)?);
@@ -316,6 +317,27 @@ impl EncodedCtls {
     fn as_ptr(&self) -> *const openmpt_module_initial_ctl {
         self.pairs.as_ptr()
     }
+}
+
+/// Rejects a ctl key that libopenmpt reads as a modifier rather than a name.
+///
+/// The library strips one trailing `!` or `?` from a key before it looks the
+/// name up (`libopenmpt_impl.cpp:1978`). A key that ends in one of them
+/// therefore names a different ctl, or none at all.
+///
+/// # Errors
+///
+/// Returns an error that names the key and the reason.
+fn check_ctl_key(key: &str) -> Result<()> {
+    if key.ends_with(['!', '?']) {
+        return Err(OpenmptError::new(
+            "set initial ctl",
+            key,
+            "libopenmpt reads a trailing '!' or '?' as a modifier, not as part of the name",
+            Some("remove the last character, or set the ctl after the load"),
+        ));
+    }
+    Ok(())
 }
 
 /// Converts one text field to a `CString`.
