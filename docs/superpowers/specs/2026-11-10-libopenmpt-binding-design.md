@@ -72,6 +72,9 @@ All citations are `openmpt/<path>:<line>` at `libopenmpt-0.8.10` (`dc4ddcf68`).
   - `sounddsp/*.cpp`
   - `libopenmpt/*.cpp`, which includes `libopenmpt_ext_impl.cpp`
   - `unarchiver/*.cpp` is built only with `HACK_ARCHIVE_SUPPORT=1` (`Makefile:1543-1546`). Leave it out.
+- At this tag the seven `src/openmpt` directories hold headers only, so their glob returns no file.
+  The real C++ set is 149 files: `common` 10, `soundlib` 115, `soundlib/plugins` 5, `soundlib/plugins/dmo` 11, `sounddsp` 4, `libopenmpt` 4.
+  `build.rs` keeps the seven directories in its list, because the upstream `Makefile` names them and a later pin can add a file there.
 - The bundled decoders are in `Makefile:1553-1633`:
   - `include/miniz/miniz.c` with `-DMPT_WITH_MINIZ`
   - `include/minimp3/minimp3.c` with `-DMPT_WITH_MINIMP3`
@@ -208,9 +211,9 @@ Every `const char *` that libopenmpt returns is copied into a `String` (lossy UT
 
 | Group | Wrapped calls |
 |-------|---------------|
-| Library info | `openmpt_get_library_version`, `openmpt_get_string` (`library_version`, `build`, `source_url`, `source_revision`) |
+| Library info | `openmpt_get_library_version`, `openmpt_get_string` (`library_version`, `source_url`, `source_revision`) |
 | Metadata | metadata keys and values, channel names, instrument names, sample names, and their counts; number of subsongs, orders, and patterns; subsong names |
-| Song position | `select_subsong`, `get_selected_subsong`, `set_repeat_count`, `get_current_order`, `get_current_row`, `get_current_pattern`, `get_current_speed`, `get_current_tempo`, `get_duration_seconds`, `get_position_seconds` |
+| Song position | `select_subsong`, `get_selected_subsong`, `set_repeat_count`, `get_current_order`, `get_current_row`, `get_current_pattern`, `get_current_speed`, `get_current_tempo2`, `get_duration_seconds`, `get_position_seconds` |
 | Pattern data | `get_order_pattern`, `get_pattern_num_rows`, `get_pattern_row_channel_command` (with a Rust enum for the `OPENMPT_MODULE_COMMAND_*` indices) |
 | Render params | `set_render_param` and `get_render_param`, with a Rust enum for the `OPENMPT_MODULE_RENDER_*` ids |
 | Ctls | `get_ctls`, and typed get and set for boolean, integer, floating-point, and text ctls |
@@ -278,6 +281,7 @@ Unit and integration tests run with `cargo nextest run`. The tests do not use th
 - Steps: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo nextest run`, `cargo deny check`, `cargo package --list -p openmpt-ext-sys` (to prove the package holds the vendored source), and a run of the built binary (the `main.rs` version print).
 - A separate Linux job does the bindings freshness check. It installs libclang and the pinned bindgen CLI.
 - Cache: `openmpt-ext-sys` is a workspace member, and the usual Rust cache action does not cache workspace crates by default. Turn on workspace crate caching (for `Swatinem/rust-cache`, `cache-workspace-crates: true`), or cache `target/` with `actions/cache`. Key the cache on `Cargo.lock` and the `build.rs` pin constants. A CI run with a warm cache must not recompile libopenmpt. The builder confirms this in the job log.
+- The `target/` cache alone cannot meet that last requirement. A fresh checkout writes `build.rs` and `wrapper.h` with the current time. Cargo compares their mtimes with the restored artifacts and reruns the build script, which compiles the C++ tree again. `mozilla-actions/sccache-action` with `SCCACHE_GHA_ENABLED=true` and `RUSTC_WRAPPER=sccache` closes the gap: the object files are keyed on their content, so a rerun gets a cache hit.
 - Actions pinned to a full SHA with a version comment. Scan with `zizmor` and `actionlint`.
 - Dependabot for Cargo and GitHub Actions, with a 7-day cooldown and grouped updates. No submodule entry (see "Bumping libopenmpt").
 - Pin the toolchain with `rust-toolchain.toml` (stable).

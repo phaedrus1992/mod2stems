@@ -184,7 +184,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `unknown_initial_ctl_is_error`: `InitialCtl { key: "no.such.ctl", .. }` gives an error with `input == "no.such.ctl"`.
   - `drop_many_modules`: load and drop 1000 times with no crash.
   - `module_is_send`: move a `Module` into `std::thread::spawn` and call `take_log()` there.
-  - `load_warning_is_logged`: load a MOD with a sample length larger than the data in the file. `take_log()` is not empty, and a second `take_log()` is empty.
+  - `load_warning_is_logged`: load a Startrekker AM file (`support::startrekker_am()`, the `FLT8` magic) that names four samples in the pattern and gives no sample data. `take_log()` is not empty, and a second `take_log()` is empty. A truncated `M.K.` file does not log a warning at 0.8.10: `SampleIO::ReadSample` limits the length without a message, and the loader reports a short sample through the `warnings` metadata key instead.
 - [ ] **Step 3:** Run `cargo nextest run -p openmpt-ext`. Expected: FAIL (`Module` is not defined).
 - [ ] **Step 4: Implement.**
   - `from_bytes`: create a boxed log sink, a `RefCell<Vec<String>>`. Call `openmpt_module_ext_create_from_memory` with the log function, the sink pointer, `openmpt_error_func_store`, the `error` and `error_message` out-params, and a NUL-terminated `openmpt_module_initial_ctl` array. On null, build the error from the code, the message (freed), and the drained log.
@@ -211,13 +211,13 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
     - `fn channel_name(&self, i: i32) -> Result<String>`, `instrument_name`, `sample_name`, `subsong_name`
 
 - [ ] **Step 1: Write the failing tests:**
-  - `library_version_is_0_8_10`
+  - `library_version_is_0_8_10`: the string starts with `"0.8.10"`. It carries a source suffix, such as `"0.8.10+r25840"`, so an exact match fails.
   - `source_revision_is_pinned` (compare with `openmpt_ext_sys::PIN_SVN_REVISION`)
   - `metadata_keys_include_type_and_title`
   - `metadata_type_is_mod`
   - `counts_match_simple_mod`: 4 channels, 0 instruments, 31 samples, 1 subsong
-  - `sample_name_round_trips`: the generator writes `b"kick"`, and the result is `"kick"`
-  - `non_utf8_name_is_lossy`: a name byte `0xFF` gives a string that contains `'\u{FFFD}'`
+  - `sample_name_round_trips`: the generator writes `b"kick"`, and sample index `0` gives `"kick"`. The sample getter takes a zero-based index into the name list, and the list starts at `SAMPLEINDEX` 1 in the loader.
+  - `high_name_byte_is_transcoded`: a name byte `0xFF` gives `"\u{FF}ick"`. libopenmpt transcodes a module string to UTF-8 before the wrapper copies it, so the byte arrives as a valid character. The lossy path stays in `LibString::take` as a guard, and no module byte reaches it.
   - `channel_name_out_of_range`: index `4` gives an error with `input == "channel 4"`, and the message names `0..4`
   - `metadata_unknown_key_is_empty_string`: libopenmpt returns an empty string, so the wrapper returns `Ok("")`
 - [ ] **Step 2:** Run. Expected: FAIL.
@@ -238,14 +238,17 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
     - `fn ctl_set_bool(&mut self, key: &str, v: bool) -> Result<()>`, with `ctl_set_int(i64)`, `ctl_set_float(f64)`, `ctl_set_text(&str)`
     - the matching getters `ctl_get_bool`, `ctl_get_int`, `ctl_get_float`, `ctl_get_text`, each `-> Result<_>`
     - `fn set_render_param(&mut self, p: RenderParam, v: i32) -> Result<()>`
-    - `fn render_param(&self, p: RenderParam) -> Result<i32>`
+    - `fn render_param(&mut self, p: RenderParam) -> Result<i32>`. It takes `&mut self` because it clears and then reads the stored error.
   - `enum RenderParam { MasterGainMillibel, StereoSeparationPercent, InterpolationFilterLength, VolumeRampingStrength }`, mapped to the `OPENMPT_MODULE_RENDER_*` ids
 
 - [ ] **Step 1: Write the failing tests:**
   - `ctl_list_has_amiga_keys`: contains `render.resampler.emulate_amiga` and `render.resampler.emulate_amiga_type`
   - `ctl_list_has_subsong_and_dither`
   - `set_get_bool_round_trip` on `render.resampler.emulate_amiga`
+  - `ctl_table_matches_library`: every key in the library ctl list has a type in the crate table, so a version bump that adds a ctl fails this test
   - `set_get_text_round_trip` on `render.resampler.emulate_amiga_type` with `"a500"`
+  - `set_get_float_round_trip` on `play.tempo_factor` with `1.5`. The library stores the factor as a fixed-point value with 16 bits of fraction, so the read is within `1/65536` of the set value.
+  - `set_get_int_round_trip` on `dither`
   - `unknown_ctl_is_error_without_library_call`: `ctl_set_bool("no.such", true)` gives an error with `input == "no.such"`
   - `wrong_type_ctl_is_error`: `ctl_set_bool("play.tempo_factor", true)` is an error
   - `render_param_round_trip`: `InterpolationFilterLength` set to 8 reads back as 8
@@ -279,10 +282,18 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - [ ] **Step 1: Write the failing tests:**
   - `select_subsong_out_of_range`: subsong `1` on `simple_mod` is an error that names `0..1`
   - `select_subsong_minus_one_is_rejected`: `-1` (all subsongs) is an error, because `docs/design.md` §4.2 does not allow the library default
+  - `select_subsong_zero_is_accepted`: subsong `0` is accepted, and `selected_subsong` reads 0
   - `pattern_cell_reads_generator_values`: row 0, channel 2 has instrument `3` and a non-zero note
-  - `pattern_cell_out_of_range_row`: row 64 is an error
+  - `pattern_cell_out_of_range_row`: row 64 is an error that names `0..64`
+  - `pattern_cell_out_of_range_channel`: channel 4 is an error that names `0..4`
+  - `pattern_cell_out_of_range_pattern`: pattern 9 is an error with `input == "pattern 9"`
   - `pattern_num_rows_is_64`
+  - `pattern_num_rows_out_of_range`: pattern 9 is an error. The library returns 0 for a missing pattern, so the wrapper checks the index first.
+  - `order_pattern_reads_the_order_list`: order 0 plays pattern 0
   - `duration_is_positive`
+  - `position_starts_at_zero`: a fresh module reports position 0
+  - `position_after_load_is_first_row`: order, row, and pattern are 0, and the speed and tempo are in range
+  - `repeat_count_zero_is_accepted`: a repeat count of 0 is accepted
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. `pattern_cell` checks the pattern, row, and channel ranges.
 - [ ] **Step 4:** Run. Expected: PASS.
@@ -303,7 +314,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `odd_buffer_is_error`: length 5 gives an error whose message names the even-length rule
   - `song_end_returns_zero`: with `set_repeat_count(0)`, read until `Ok(0)`, then one more read is `Ok(0)` and `current_row()` does not panic
   - `bad_rate_is_error`: rates `0` and `1_000_000` each give an `Err` that names the rate. Neither gives `Ok(0)`.
-  - `position_advances_by_row`: read the song in 64-frame blocks at 48000 Hz, and record `(current_order(), current_row())` after each read. Deduplicate consecutive repeats. The sequence starts `(0,0), (0,1), (0,2)`.
+  - `position_advances_by_row`: read the song in 64-frame blocks at 48000 Hz, and record `(current_order(), current_row())` after each read. Deduplicate consecutive repeats. The sequence starts `(0,0), (0,1), (0,2)`. A 64-frame block at 48000 Hz is shorter than one row, so the loop reads 200 blocks and the start of the sequence is the value under test.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. Check that the length is even. Check the rate against `pub const SAMPLE_RATE_RANGE: RangeInclusive<i32> = 8000..=192000` (the range in the `libopenmpt.h` comment for the read functions). libopenmpt itself does not check the rate, and rate 0 reaches a division (`libopenmpt_impl.cpp:995`). Then call `openmpt_module_read_interleaved_float_stereo` with `count = len / 2`, then `check_last_error`.
 - [ ] **Step 4:** Run. Expected: PASS.
@@ -331,8 +342,8 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - `mute_getter_round_trip`
   - `volume_is_quantized`: set `0.5` and read `0.5`. Set `0.3` and read `(0.3_f64 * 64.0).round() / 64.0`.
   - `volume_out_of_range`: `1.5`, `-0.1`, and `f64::NAN` are each an error that names the value
-  - `instrument_mute_uses_sample_count`: `simple_mod` has no instruments, so the valid range is the sample count. Index `0` and index `num_samples() + 1` are errors (the message names the range), and index `1` is `Ok`. Check the 1-based slot convention in `libopenmpt_ext_impl.cpp:221-223`, and make the test match it.
-  - `channel_out_of_range`: channel `4` is an error on all six methods
+  - `instrument_mute_uses_sample_count`: `simple_mod` has no instruments, so the valid range is the sample count. Index `0` and index `num_samples() + 1` are errors (the message names the range), and index `1` is `Ok`. The C wrapper checks `0 <= instrument < max` and then reads the 1-based slot `instrument + 1`, so the valid index starts at 0 (`libopenmpt_ext_impl.cpp:221-223`).
+  - `channel_out_of_range`: channel `4` is an error on all four channel methods. The two instrument methods do not take a channel index, so they are not in this test. `instrument_out_of_range_is_not_a_channel_index` checks that sample slot 4 stays valid.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement. `set_channel_volume` checks that the value is finite and in `0.0..=1.0` before the call. Its doc comment says that libopenmpt quantizes the value to 1/64 steps. `channel_volume` calls `check_last_error` after the call, because 0.0 is ambiguous.
 - [ ] **Step 4:** Run. Expected: PASS.
@@ -343,9 +354,9 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 **Files:**
 - Create: `crates/openmpt-ext/tests/fuzz_load.rs`
 
-- [ ] **Step 1:** Write `from_bytes_never_crashes`: `proptest!` with `ProptestConfig { cases: 256, .. }` over `prop::collection::vec(any::<u8>(), 0..8192)`. The assertion: the call returns, either `Ok` or `Err`. Add a second strategy that takes `simple_mod()` and changes up to 16 random bytes, so that the input reaches the MOD loader.
-- [ ] **Step 2:** Run `cargo nextest run -p openmpt-ext fuzz_load`. Expected: PASS.
-- [ ] **Step 3:** Break the code on purpose: make `from_bytes` `unwrap` the core pointer with no null check. Confirm that a test fails. Revert.
+- [ ] **Step 1:** Add `proptest = "=1.12.0"` to the crate's `[dev-dependencies]`. Write `from_bytes_never_crashes`: `proptest!` with `ProptestConfig { cases: 256, .. }` over `prop::collection::vec(any::<u8>(), 0..8192)`. The assertion: the call returns, either `Ok` or `Err`. Add a second strategy that takes `simple_mod()` and changes up to 16 random bytes, so that the input reaches the MOD loader. Add `an_empty_load_fails`, which checks that an empty buffer is an error. The property tests do not catch a missing null check, because the C wrapper frees the failed handle and returns null either way.
+- [ ] **Step 2:** Run `cargo nextest run -p openmpt-ext --test fuzz_load`. Expected: PASS.
+- [ ] **Step 3:** Break the code on purpose: remove the `ext.is_null()` guard from `from_bytes`. Confirm that `empty_bytes_is_error` and `garbage_bytes_is_error` fail. Revert, then touch the source file: a restored file with an older mtime leaves the broken test binary in place.
 - [ ] **Step 4:** Commit: `test(ext): property test module loading`.
 
 ### Task 11: main.rs version print
@@ -354,9 +365,9 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - Modify: `src/main.rs`
 - Create: `tests/version.rs`
 
-- [ ] **Step 1:** Write the failing test `prints_versions`. It runs `env!("CARGO_BIN_EXE_mod2stems")` and asserts stdout contains `mod2stems <CARGO_PKG_VERSION>`, `libopenmpt 0.8.10`, and `r25840`, with exit code 0.
+- [ ] **Step 1:** Write the failing tests `prints_versions` and `prints_one_line`. `prints_versions` runs `env!("CARGO_BIN_EXE_mod2stems")` and asserts stdout contains `mod2stems <CARGO_PKG_VERSION>`, `libopenmpt 0.8.10`, and `r25840`, with exit code 0. `prints_one_line` checks that the output is one line.
 - [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3:** Implement `main` with `openmpt_ext::library_info`. Print one line: `mod2stems {ver} (libopenmpt {lib} r{rev}, {url})`.
+- [ ] **Step 3:** Implement `main` with `openmpt_ext::library_info`. Print one line: `mod2stems {ver} (libopenmpt {lib}, {url})`. The `library_version` string already holds the revision, as in `0.8.10+r25840`, so a separate `source_revision` field would print it twice. The workspace denies `print_stdout`, so `main` carries `#[expect(clippy::print_stdout, reason = "...")]`.
 - [ ] **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit: `feat: print tool and libopenmpt versions`.
 
@@ -376,7 +387,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
   - Rewrite the constants with `perl -pi -e`, and check after each rewrite that the new value is in the file.
   - Run `scripts/regen-bindings.sh`.
 - [ ] **Step 2:** Run `shellcheck` and `shfmt -d`. Expected: clean.
-- [ ] **Step 3:** Test `scripts/bump-libopenmpt.sh libopenmpt-0.8.10`. Expected: no diff in `git status` (a bump to the same tag is a no-op). Test `scripts/bump-libopenmpt.sh 0.8.10`. Expected: exit 1 with the tag-shape message.
+- [ ] **Step 3:** Test `scripts/bump-libopenmpt.sh libopenmpt-0.8.10`. Expected: exit 0 and no diff in `git status`, because a bump to the same tag is a no-op. Test `scripts/bump-libopenmpt.sh 0.8.10`. Expected: exit 1 with the tag-shape message. Test a tag that does not exist. Expected: exit 1, and the submodule stays on its pin.
 - [ ] **Step 4:** Commit: `feat(scripts): add libopenmpt pin bump script`.
 
 ### Task 13: CI, Dependabot, prek, README
@@ -399,6 +410,7 @@ In `tests/pin.rs`, write `pin_commit_matches_submodule_head`. It runs `git -C <C
 - [ ] **Step 6:** Add a "Build" section to `README.md` (one sentence per line): clone with `--recurse-submodules` or run `git submodule update --init --depth 1`, then `cargo build`. A C++17 compiler is required (on macOS, the Xcode command line tools). Also add a "License" section: `Apache-2.0`, with libopenmpt and the decoders under their own licenses in `crates/openmpt-ext-sys/LICENSES/`.
 - [ ] **Step 7:** Commit: `ci: add macOS and Linux CI with cached libopenmpt build` and `docs(readme): add build and license sections` (two commits).
 - [ ] **Step 8:** After the push, check the second CI run's log: the `openmpt-ext-sys` build step must show no C++ compile (the cache hit). If it compiles again, fix the cache key or the cache settings before the PR is done.
+- [ ] **Step 9:** When Step 8 fails, the cause is the mtime check: a fresh checkout writes `build.rs` and `wrapper.h` with the current time, so cargo reruns the build script even with a warm `target/`. Add `mozilla-actions/sccache-action` and export `SCCACHE_GHA_ENABLED=true` and `RUSTC_WRAPPER=sccache`. Check the second run: the job log must show sccache hit counts for the C++ objects.
 
 ### Task 14: Design doc and issue updates
 

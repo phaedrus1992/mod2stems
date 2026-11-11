@@ -1,0 +1,36 @@
+[package]
+name = "openmpt-ext-sys"
+version = "0.0.0"
+description = "Raw bindings to libopenmpt and libopenmpt_ext, built statically from a pinned vendored copy"
+license = "Apache-2.0 AND BSD-3-Clause AND MIT AND CC0-1.0 AND (MIT OR Unlicense)"
+edition.workspace = true
+repository.workspace = true
+publish.workspace = true
+links = "openmpt"
+# The build compiles C++ that includes headers from `src/mpt/**` and
+# `build/svn_version/**` by relative path. A missing one makes the published
+# crate fail to compile, so `cargo package` in CI builds this list.
+include = [
+	"src/**",
+	"tests/**",
+	"build.rs",
+	"wrapper.h",
+	"LICENSES/**",
+	"vendor/openmpt/src/openmpt/**",
+	"vendor/openmpt/src/mpt/**",
+	"vendor/openmpt/build/svn_version/**",
+	"vendor/openmpt/common/**",
+	"vendor/openmpt/soundlib/**",
+	"vendor/openmpt/sounddsp/**",
+	"vendor/openmpt/libopenmpt/**",
+	"vendor/openmpt/include/miniz/**",
+	"vendor/openmpt/include/minimp3/**",
+	"vendor/openmpt/include/stb_vorbis/**",
+	"vendor/openmpt/LICENSE",
+]
+
+[build-dependencies]
+cc = { version = "1.11.1", features = ["parallel"] }
+
+[lints]
+workspace = true

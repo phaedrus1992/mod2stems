@@ -1,0 +1,59 @@
+# The hooks that run before each commit.
+#
+# Install them with `prek install`. Run them by hand with
+# `prek run --all-files`.
+repos:
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-toml
+      - id: mixed-line-ending
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: 99470f5e12208ff0fb17ab81c3c494f7620a1d8d # v0.11.0
+    hooks:
+      - id: shellcheck
+
+  # `mvdan/sh` holds the shfmt source but no hook manifest. This mirror holds
+  # the manifest and republishes one tag per shfmt release.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: 479be5958357ba5ab65ce47172117348516860e9 # v3.14.1-1
+    hooks:
+      - id: shfmt
+        args: ["-d"]
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: '^\.github/workflows/.*\.ya?ml$'
+
+      - id: zizmor
+        name: zizmor
+        entry: zizmor
+        language: system
+        files: '^\.github/workflows/.*\.ya?ml$'

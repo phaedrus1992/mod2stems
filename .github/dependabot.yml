@@ -1,0 +1,25 @@
+# Dependabot updates the Rust crates and the Actions pins.
+#
+# The libopenmpt pin is a git submodule, and Dependabot has no updater for a
+# submodule that tracks tags. Bump it with scripts/bump-libopenmpt.sh.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

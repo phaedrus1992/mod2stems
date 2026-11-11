@@ -1,0 +1,17 @@
+[package]
+name = "openmpt-ext"
+version = "0.0.0"
+description = "Safe Rust wrapper over libopenmpt and its interactive extension interface"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+openmpt-ext-sys = { path = "../openmpt-ext-sys", version = "0.0.0" }
+
+[dev-dependencies]
+proptest = "=1.12.0"
+
+[lints]
+workspace = true
