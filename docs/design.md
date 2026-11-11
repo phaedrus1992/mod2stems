@@ -164,10 +164,10 @@ Two silencing methods exist in the stock interactive interface:
 | Method | Keeps effects on the silenced channel | Limit |
 |--------|---------------------------------------|-------|
 | `set_channel_mute_status` | Yes, except under ScreamTracker 3 rules | Also mutes NNA voices that the channel owns. |
-| `set_channel_volume` set to 0 | Yes | A channel-volume pattern command (IT and MPTM) overrides it, and so does a channel volume slide. A song restart resets it. |
+| `set_channel_volume` set to 0 | Yes | A channel-volume pattern command (IT and MPTM) overrides it. So does a channel volume slide, and the volume down with duration command (FTM). A song restart resets it. |
 
 The ScreamTracker 3 effect gate reads the channel mute flag, not the channel volume, so zero channel volume does not trigger it.
-Both channel-volume writes in the effect engine overwrite the value that the silencing set: the channel volume command, and the channel volume slide.
+Three channel-volume writes in the effect engine overwrite the value that the silencing set: the channel volume command, the channel volume slide, and the volume down with duration command.
 
 Select the method from the module's playback type.
 Use zero channel volume for modules with ScreamTracker 3 rules, and channel mute for the other types.
@@ -480,10 +480,10 @@ All seven technical questions are resolved.
 The evidence and the decisions are in `docs/design/pre-implementation-validation.md`.
 Their effect on this document is applied above.
 
-- Reconstruction envelope: the random state feeds instrument swing only. Each instance seeds from a process-wide generator that has no C API control. Randomized modules stay supported, with a comparison status instead of a claim of exact isolation.
+- Reconstruction envelope: the random state feeds instrument swing and random-vibrato waveforms. Each instance seeds from a process-wide generator that has no C API control. Randomized modules stay supported, with a comparison status instead of a claim of exact isolation.
 - Sample values: no playback decision reads sample values, except the MED synth envelope. Sample silencing therefore keeps playback state, and the MED adapter rejects synth envelopes.
 - Native instrument mute: the mute flag has one audio-path reader, on note start. The strategy stays the second choice, with its known risky events.
-- ScreamTracker 3 coverage: the effect gate reads the channel mute flag, not the channel volume. Zero channel volume therefore keeps effects for every loader with S3M playback rules. Two channel-volume effects can still overwrite the silencing, and the row trace detects that.
+- ScreamTracker 3 coverage: the effect gate reads the channel mute flag, not the channel volume. Zero channel volume therefore keeps effects for every loader with S3M playback rules. Three channel-volume effects can still overwrite the silencing, and the sample-isolation completeness check detects that.
 - End policy: use `stop`. The default `fadeout` adds a 100 ms fade. Maximum-duration termination stays a separate failure.
 - Profiles: the library does not report Amiga applicability, and the module type does not predict it. The amiga profile compares an emulated render with a plain one. The profile code rejects a conflicting interpolation setting.
 - Defaults: the output rate decision is in the validation record, and the value lives in implementation configuration. The other settings keep the library defaults, and the profiles change what each profile names.
@@ -507,7 +507,7 @@ This document defines the design; it does not start implementation.
   panning overrides and their limits.
 - [libopenmpt FAQ](https://lib.openmpt.org/libopenmpt/faq/): compatibility and plugin
   support limitations.
-- OpenMPT source, read at commit `ea2adbf84`:
+- OpenMPT source, read at commit `dc4ddcf68`:
   - `libopenmpt/libopenmpt_ext_impl.cpp`: channel mute (also NNA voices), channel volume, and instrument or sample mute.
   - `soundlib/Snd_fx.cpp`, `CSoundFile::NoteChange`: the instrument and sample mute check at note start, which sets the period to 0.
   - `soundlib/Snd_fx.cpp`, `kST3NoMutedChannels`: muted channels skip all effects under ScreamTracker 3 rules.

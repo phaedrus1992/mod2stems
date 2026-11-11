@@ -16,8 +16,10 @@ Evidence:
 - `soundlib/Sndfile.cpp:121` seeds each `CSoundFile` instance: `m_PRNG(mpt::make_prng<mpt::fast_prng>(mpt::global_prng()))`.
 - `common/mptRandom.cpp:65` seeds the process-wide generator from `global_random_device()`.
 - The stock C API has no seeding control. `Randomize` exists only in the tracker application, not in libopenmpt.
-- The random state feeds only instrument swing. `soundlib/Sndmix.cpp` uses `m_PRNG` for volume swing, pan swing, cutoff swing, and resonance swing.
-  Random vibrato waveforms use the same state.
+- The random state feeds instrument swing and random-vibrato waveforms.
+  `soundlib/Snd_fx.cpp:2041-2062` uses the generator for volume, pan, cutoff, and resonance swing.
+  `soundlib/Sndmix.cpp:847` and `1822` use it for a random vibrato or random panbrello waveform.
+- Both files reach the state through `AccessPRNG()` (`soundlib/Sndfile.h:543-544`).
 - Probe: two unmuted renders of each vendor module were byte-identical.
   This is not a guarantee. It is one sample from one process seed.
 
@@ -55,7 +57,7 @@ Evidence from the source, which is stronger than a measurement on four modules:
 - Therefore instrument mute silences every note that starts after the mute, and leaves the channel otherwise live.
   Under ScreamTracker 3 rules that is strictly better than channel mute, because the channel keeps its effects.
 - New-note-action voices are separate channel slots. `soundlib/Snd_fx.cpp:2374-2377` copies the source channel into the NNA slot and resets `CHN_MUTE` on the copy.
-  Channel mute handles this explicitly: `set_channel_mute_status` also sets `CHN_MUTE` on every slot whose `nMasterChn` is the channel (`libopenmpt_impl.cpp:203-210`).
+  Channel mute handles this explicitly: `set_channel_mute_status` also sets `CHN_MUTE` on every slot whose `nMasterChn` is the channel (`libopenmpt/libopenmpt_ext_impl.cpp:203-210`).
   Instrument mute does not need to. A muted channel is skipped before note processing (`soundlib/Sndmix.cpp:2183`), so it starts no NNA voice; a voice copied from a note that started after the mute inherits that note's `nPeriod`, which is 0.
 - The failure modes are the ones the design already lists: a sample swap without a note, and a portamento note.
   The probe could not measure their frequency on the vendor modules, because most instrument slots in those modules carry no audio.
@@ -75,13 +77,16 @@ Evidence:
 - The gate that skips effects on a muted channel is `soundlib/Snd_fx.cpp:576-581`: `ignoreMutedChn = m_playBehaviour[kST3NoMutedChannels]` with `ChnSettings[nChn].dwFlags[CHN_MUTE]`.
   It reads the channel setting, not the channel volume. Zero channel volume is not the same flag, so it does not trigger the gate.
 - `soundlib/Sndfile.cpp:1164-1300` sets `kST3NoMutedChannels` for `MOD_TYPE_S3M`. `Load_s3m.cpp:429-435` clears it when the module is not a compatible tracker.
+  `Load_ftm.cpp:113` sets it unconditionally for FTM, so FTM is the fixture source for a non-S3M loader with S3M playback rules.
 - Probe: on `test.mod`, `test.s3m`, and `test.xm`, channel mute and sample mute produced the same order/row sequence as the unmuted render.
   The probe records the sequence after every 256-frame block and finds no difference. The vendor modules do not exercise the ScreamTracker 3 gate, so the source is the authority here.
 - `soundlib/Sndmix.cpp:505-527` restarts the song and resets `nGlobalVol` from `ChnSettings[i].nVolume`. That reset applies only at a real song restart.
   The export renders one pass with repeat count 0, so a restart does not occur in the rendered region.
-- `CMD_CHANNELVOLUME` at `soundlib/Snd_fx.cpp:3768` and `ChannelVolSlide` at `5094-5126` both overwrite `chn.nGlobalVol`. A module that uses either command on a silenced channel defeats zero volume for that channel.
+- Three effect commands overwrite `chn.nGlobalVol`: `CMD_CHANNELVOLUME` at `soundlib/Snd_fx.cpp:3768`, `ChannelVolSlide` at `5094-5126`, and `ChannelVolumeDownWithDuration` at `5128-5149`.
+  A module that uses any of them on a silenced channel defeats zero volume for that channel.
+  FTM produces the third command (`Load_ftm.cpp:404`) and also sets `kST3NoMutedChannels` (`Load_ftm.cpp:113`), so that pair is reachable.
 
-Decision: the design's method table is right, and it now lists both channel-volume effects in the limit column.
+Decision: the design's method table is right, and it now lists all three channel-volume effects in the limit column.
 The row trace alone does not detect the override. A channel-volume command does not change the order or row sequence, so the trace stays equal.
 The sample-isolation method's completeness check catches it: the silenced channel keeps audio, so its stem is not isolated.
 The design keeps the explicit failure for a type with neither guarantee.
@@ -115,8 +120,10 @@ Question: how does the wrapper know a profile applies, and when is Amiga emulati
 
 Evidence:
 
-- All three profile controls are always present in `get_ctl_infos()` at `libopenmpt/libopenmpt_impl.cpp:1731-1732`.
-  The runtime presence check is still required, because the build pins one version and a future bump could drop a control.
+- Two of the profile controls are ctls, and both appear in `get_ctl_infos()`: `render.resampler.emulate_amiga` and `render.resampler.emulate_amiga_type` (`libopenmpt/libopenmpt_impl.cpp:1731-1732`).
+  The third is the render parameter `module::RENDER_INTERPOLATIONFILTER_LENGTH`, read at `libopenmpt_impl.cpp:946-947` and written at `971-977`.
+  A ctl presence check does not cover it.
+  The runtime check is still required for both kinds, because the build pins one version and a future bump could drop a control.
 - `render.resampler.emulate_amiga` reads back the resolved setting, not an applicability result: `libopenmpt_impl.cpp:1829-1830` returns `emulateAmiga != Off`.
   A non-Amiga module accepts `true` and reports `true`, with no audible effect.
 - The Amiga resampler applies only when `SONG_ISAMIGA` is set and emulation is on (`soundlib/Sndmix.cpp:2571`).
@@ -133,7 +140,7 @@ Decision: the wrapper cannot ask the library whether Amiga applies.
 - The `dsym` and `xmf` loaders clear the flag after they load as `MOD_TYPE_MOD`, so the token reads `mod` for a module that is not Amiga.
 - The `med` loader clears the flag when any instrument uses stereo samples.
 - The `gdm` and `mo3` loaders set the flag only for a 4-channel module with Amiga-limit notes, which the token does not express.
-- The `uax` loader loads an `MPT`-type module and sets the flag by an earlier rule, not by the token.
+- The `puma` loader loads as `MOD_TYPE_MOD` and sets the flag directly (`Load_puma.cpp:185`), so the flag can also be stronger than the token suggests.
 
 So no allowlist of type tokens is correct.
 Detect applicability by comparison instead: render the module once with Amiga emulation on and once with it off, and compare the PCM.
@@ -173,7 +180,7 @@ These sections of `docs/design.md` changed:
 
 1. Section 1.1 and 4.2: the tail is the render up to the library's song end, and the end policy is `stop` with no fade.
 2. Section 2.1: the amiga profile proves applicability by comparing an emulated render with a plain one, and the profile code rejects a conflicting interpolation setting.
-3. Section 4.1: the zero-volume method lists both channel-volume effects in its limit column.
+3. Section 4.1: the zero-volume method lists all three channel-volume effects in its limit column.
 4. Section 4.5: the sample-silencing assumption holds except for MED synth envelopes, and the adapter must reject that case.
 5. Section 7: the fixture corpus gains the ringing-tail case and the MED synth-envelope case.
 6. Section 8: the questions close, and this file is the record.
