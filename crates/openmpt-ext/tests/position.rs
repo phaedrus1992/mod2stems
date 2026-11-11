@@ -241,7 +241,7 @@ fn position_after_load_is_first_row() -> Result<(), String> {
             return Err(format!("the {name} is {actual}, expected {expected}"));
         }
     }
-    if module.current_speed() < 1 || module.current_tempo() < 32 {
+    if module.current_speed() < 1 || module.current_tempo() < 32.0 {
         return Err(format!(
             "the speed is {} and the tempo is {}, expected both to be in range",
             module.current_speed(),

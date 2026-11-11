@@ -80,10 +80,14 @@ impl Module {
     }
 
     /// Returns the current tempo, in ticks per minute.
+    ///
+    /// The tempo is a fractional value. The header marks the integer getter
+    /// `openmpt_module_get_current_tempo` as deprecated, and it truncates the
+    /// fraction, so this crate reads `openmpt_module_get_current_tempo2`.
     #[must_use]
-    pub fn current_tempo(&self) -> i32 {
+    pub fn current_tempo(&self) -> f64 {
         // SAFETY: the handle is live. The call only reads a counter.
-        unsafe { openmpt_ext_sys::openmpt_module_get_current_tempo(self.core()) }
+        unsafe { openmpt_ext_sys::openmpt_module_get_current_tempo2(self.core()) }
     }
 
     /// Returns the duration of the selected subsong, in seconds.

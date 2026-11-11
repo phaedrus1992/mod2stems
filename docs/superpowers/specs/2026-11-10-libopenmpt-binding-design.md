@@ -211,9 +211,9 @@ Every `const char *` that libopenmpt returns is copied into a `String` (lossy UT
 
 | Group | Wrapped calls |
 |-------|---------------|
-| Library info | `openmpt_get_library_version`, `openmpt_get_string` (`library_version`, `build`, `source_url`, `source_revision`) |
+| Library info | `openmpt_get_library_version`, `openmpt_get_string` (`library_version`, `source_url`, `source_revision`) |
 | Metadata | metadata keys and values, channel names, instrument names, sample names, and their counts; number of subsongs, orders, and patterns; subsong names |
-| Song position | `select_subsong`, `get_selected_subsong`, `set_repeat_count`, `get_current_order`, `get_current_row`, `get_current_pattern`, `get_current_speed`, `get_current_tempo`, `get_duration_seconds`, `get_position_seconds` |
+| Song position | `select_subsong`, `get_selected_subsong`, `set_repeat_count`, `get_current_order`, `get_current_row`, `get_current_pattern`, `get_current_speed`, `get_current_tempo2`, `get_duration_seconds`, `get_position_seconds` |
 | Pattern data | `get_order_pattern`, `get_pattern_num_rows`, `get_pattern_row_channel_command` (with a Rust enum for the `OPENMPT_MODULE_COMMAND_*` indices) |
 | Render params | `set_render_param` and `get_render_param`, with a Rust enum for the `OPENMPT_MODULE_RENDER_*` ids |
 | Ctls | `get_ctls`, and typed get and set for boolean, integer, floating-point, and text ctls |
