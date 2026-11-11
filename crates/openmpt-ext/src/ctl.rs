@@ -2,12 +2,20 @@
 
 use std::collections::HashSet;
 use std::ffi::CString;
+use std::ops::RangeInclusive;
 use std::os::raw::c_int;
 
 use crate::cstr::LibString;
 use crate::error::OpenmptError;
 use crate::error::Result;
 use crate::module::Module;
+
+/// The stereo separation range that the library documents, in percent.
+const STEREO_SEPARATION_PERCENT: RangeInclusive<i32> = 0..=200;
+/// The volume ramping range that the library documents.
+///
+/// A value of -1 selects the library default.
+const VOLUME_RAMPING_STRENGTH: RangeInclusive<i32> = -1..=10;
 
 /// One render parameter, with the `OPENMPT_MODULE_RENDER_*` id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,12 +34,30 @@ impl RenderParam {
     /// Returns the id that libopenmpt accepts.
     fn id(self) -> c_int {
         match self {
-            // These values come from the `OPENMPT_MODULE_RENDER_*` defines in
-            // `libopenmpt.h`. The bindings do not export them.
-            Self::MasterGainMillibel => 1,
-            Self::StereoSeparationPercent => 2,
-            Self::InterpolationFilterLength => 3,
-            Self::VolumeRampingStrength => 4,
+            Self::MasterGainMillibel => {
+                openmpt_ext_sys::OPENMPT_MODULE_RENDER_MASTERGAIN_MILLIBEL.cast_signed()
+            }
+            Self::StereoSeparationPercent => {
+                openmpt_ext_sys::OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT.cast_signed()
+            }
+            Self::InterpolationFilterLength => {
+                openmpt_ext_sys::OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH.cast_signed()
+            }
+            Self::VolumeRampingStrength => {
+                openmpt_ext_sys::OPENMPT_MODULE_RENDER_VOLUMERAMPING_STRENGTH.cast_signed()
+            }
+        }
+    }
+
+    /// Returns the value range that the library documents, when it has one.
+    ///
+    /// The library clamps a filter length and accepts any gain, so only two
+    /// params need a check. The other two return `None`.
+    fn range(self) -> Option<RangeInclusive<i32>> {
+        match self {
+            Self::StereoSeparationPercent => Some(STEREO_SEPARATION_PERCENT),
+            Self::VolumeRampingStrength => Some(VOLUME_RAMPING_STRENGTH),
+            Self::MasterGainMillibel | Self::InterpolationFilterLength => None,
         }
     }
 
@@ -235,9 +261,11 @@ impl Module {
     ///
     /// # Errors
     ///
-    /// Returns an error when libopenmpt rejects the value. The filter length
-    /// rejects a negative value.
+    /// Returns an error when the value is outside the range that libopenmpt
+    /// documents for `param`, when libopenmpt rejects the value, or when the
+    /// filter length is negative.
     pub fn set_render_param(&mut self, param: RenderParam, value: i32) -> Result<()> {
+        check_render_param(param, value)?;
         self.clear_error();
         // SAFETY: the handle is live. The other arguments are plain values.
         let ok = unsafe {
@@ -301,4 +329,29 @@ impl Module {
         }
         self.check_last_error(op, input)
     }
+}
+
+/// Rejects a render-param value outside the range that the library documents.
+///
+/// The C++ mixer multiplies the stereo separation by 128 and the ramping by
+/// 1000 in an `i32`, so a value near the `i32` limit is a signed overflow in
+/// the library. The library clamps neither value.
+fn check_render_param(param: RenderParam, value: i32) -> Result<()> {
+    let Some(range) = param.range() else {
+        return Ok(());
+    };
+    if range.contains(&value) {
+        return Ok(());
+    }
+    Err(OpenmptError::new(
+        "set render param",
+        format!("{} {value}", param.name()),
+        format!(
+            "the value {value} is outside {}..={} for {}",
+            range.start(),
+            range.end(),
+            param.name()
+        ),
+        Some("use a value in the range that libopenmpt documents"),
+    ))
 }

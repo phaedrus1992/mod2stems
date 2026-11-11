@@ -185,6 +185,71 @@ fn render_param_snaps_filter_length() -> Result<(), String> {
 }
 
 #[test]
+fn render_param_rejects_out_of_range_separation() -> Result<(), String> {
+    // The C++ mixer computes `value * 128` in an `i32`, so a large value is a
+    // signed overflow inside the library.
+    let mut module = load()?;
+    for value in [201, -1, i32::MAX] {
+        let error = module
+            .set_render_param(RenderParam::StereoSeparationPercent, value)
+            .err();
+        let Some(error) = error else {
+            return Err(format!("a stereo separation of {value} must be an error"));
+        };
+        if !error.message.contains("0..=200") {
+            return Err(format!(
+                "message is {:?}, expected it to name 0..=200",
+                error.message
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn render_param_rejects_out_of_range_ramping() -> Result<(), String> {
+    let mut module = load()?;
+    for value in [11, -2] {
+        let error = module
+            .set_render_param(RenderParam::VolumeRampingStrength, value)
+            .err();
+        let Some(error) = error else {
+            return Err(format!("a ramping strength of {value} must be an error"));
+        };
+        if !error.message.contains("-1..=10") {
+            return Err(format!(
+                "message is {:?}, expected it to name -1..=10",
+                error.message
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn render_param_accepts_the_documented_edges() -> Result<(), String> {
+    let mut module = load()?;
+    let checks = [
+        (RenderParam::StereoSeparationPercent, 0),
+        (RenderParam::StereoSeparationPercent, 200),
+        (RenderParam::VolumeRampingStrength, -1),
+        (RenderParam::VolumeRampingStrength, 10),
+    ];
+    for (param, value) in checks {
+        module
+            .set_render_param(param, value)
+            .map_err(|error| error.to_string())?;
+        let read = module
+            .render_param(param)
+            .map_err(|error| error.to_string())?;
+        if read != value {
+            return Err(format!("{param:?} {value} read back as {read}"));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn render_param_rejects_negative() -> Result<(), String> {
     let mut module = load()?;
     let error = module
