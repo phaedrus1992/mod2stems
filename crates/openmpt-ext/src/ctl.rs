@@ -5,7 +5,7 @@ use std::ffi::CString;
 use std::ops::RangeInclusive;
 use std::os::raw::c_int;
 
-use crate::cstr::LibString;
+use crate::cstr::take_required;
 use crate::error::OpenmptError;
 use crate::error::Result;
 use crate::module::Module;
@@ -127,6 +127,7 @@ impl Module {
     /// is not a boolean ctl, or when libopenmpt rejects the value.
     pub fn ctl_set_bool(&mut self, key: &str, value: bool) -> Result<()> {
         let name = Self::checked_ctl(key, CtlType::Bool)?;
+        self.clear_error();
         // SAFETY: the handle is live, and `name` is a valid C string.
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_boolean(
@@ -146,6 +147,7 @@ impl Module {
     /// is not an integer ctl, or when libopenmpt rejects the value.
     pub fn ctl_set_int(&mut self, key: &str, value: i64) -> Result<()> {
         let name = Self::checked_ctl(key, CtlType::Int)?;
+        self.clear_error();
         // SAFETY: the handle is live, and `name` is a valid C string.
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_integer(self.core(), name.as_ptr(), value)
@@ -161,6 +163,7 @@ impl Module {
     /// is not a float ctl, or when libopenmpt rejects the value.
     pub fn ctl_set_float(&mut self, key: &str, value: f64) -> Result<()> {
         let name = Self::checked_ctl(key, CtlType::Float)?;
+        self.clear_error();
         // SAFETY: the handle is live, and `name` is a valid C string.
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_floatingpoint(self.core(), name.as_ptr(), value)
@@ -185,6 +188,7 @@ impl Module {
                 Some("a ctl value must be text with no NUL"),
             )
         })?;
+        self.clear_error();
         // SAFETY: the handle is live, and both strings are valid C strings.
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_text(self.core(), name.as_ptr(), text.as_ptr())
@@ -254,7 +258,7 @@ impl Module {
         let ptr =
             unsafe { openmpt_ext_sys::openmpt_module_ctl_get_text(self.core(), name.as_ptr()) };
         self.check_last_error("ctl get", key)?;
-        Ok(LibString::take(ptr).unwrap_or_default())
+        take_required(ptr, "ctl get", key)
     }
 
     /// Sets one render parameter.

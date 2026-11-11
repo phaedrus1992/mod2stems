@@ -177,6 +177,9 @@ impl Module {
         let rows = self.pattern_num_rows(pattern)?;
         check_index("pattern cell", "row", row, rows)?;
         check_index("pattern cell", "channel", channel, self.num_channels())?;
+        // The checks above satisfy every precondition of the library call, and
+        // the call throws only on a null handle (`libopenmpt_c.cpp:280`). A
+        // failure is therefore impossible here, and 0 is always an empty field.
         // SAFETY: the handle is live, and all three indexes are in range.
         let value = unsafe {
             openmpt_ext_sys::openmpt_module_get_pattern_row_channel_command(
