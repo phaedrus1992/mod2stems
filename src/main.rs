@@ -15,13 +15,19 @@ use openmpt_ext::library_info;
 fn main() -> std::process::ExitCode {
     let version = env!("CARGO_PKG_VERSION");
     // The library version string carries the revision, as in `0.8.10+r25840`.
-    let Ok(library) = library_info(LibraryInfo::LibraryVersion) else {
-        eprintln!("cannot read the libopenmpt version");
-        return std::process::ExitCode::FAILURE;
+    let library = match library_info(LibraryInfo::LibraryVersion) {
+        Ok(library) => library,
+        Err(error) => {
+            eprintln!("cannot read the libopenmpt version: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
     };
-    let Ok(url) = library_info(LibraryInfo::SourceUrl) else {
-        eprintln!("cannot read the libopenmpt source URL");
-        return std::process::ExitCode::FAILURE;
+    let url = match library_info(LibraryInfo::SourceUrl) {
+        Ok(url) => url,
+        Err(error) => {
+            eprintln!("cannot read the libopenmpt source URL: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
     };
     println!("mod2stems {version} (libopenmpt {library}, {url})");
     std::process::ExitCode::SUCCESS
