@@ -3,7 +3,12 @@
 #
 # Usage:
 #   scripts/bump-libopenmpt.sh <tag>    for example: libopenmpt-0.8.11
+#   scripts/bump-libopenmpt.sh --check-tag <tag>
 #   scripts/bump-libopenmpt.sh --help
+#
+# --check-tag validates a tag only. It prints the three version fields, one per
+# line, and exits 1 for a tag that is not a release. It reads no file and
+# touches no git state, so it can run in a test.
 #
 # The tag must name a release. The script checks out the tag in the submodule,
 # reads its commit, SVN revision, URL, and date, and writes them to the five
@@ -30,9 +35,27 @@ note() {
 	echo "bump-libopenmpt.sh: $1" >&2
 }
 
+# The release-tag pattern. Each field is one to three digits, so a suffix such
+# as "rc1" and a missing field are both rejected.
+TAG_PATTERN='^libopenmpt-([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$'
+
+# Rejects a tag that is not a release tag.
+check_tag() {
+	[[ "$1" =~ $TAG_PATTERN ]] ||
+		die "the tag '$1' is not a release tag. Use libopenmpt-<major>.<minor>.<patch>, for example libopenmpt-0.8.11"
+}
+
 case "${1:-}" in
 --help | -h)
 	usage
+	exit 0
+	;;
+--check-tag)
+	tag="${2:-}"
+	[[ -n "$tag" ]] || die "--check-tag needs a tag. Run: scripts/bump-libopenmpt.sh --check-tag libopenmpt-0.8.10"
+	check_tag "$tag"
+	# The match above sets BASH_REMATCH, which holds the three fields.
+	printf '%s\n%s\n%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
 	exit 0
 	;;
 "")
@@ -42,8 +65,7 @@ case "${1:-}" in
 esac
 
 tag="$1"
-[[ "$tag" =~ ^libopenmpt-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] ||
-	die "the tag '$tag' is not a release tag. Use libopenmpt-<major>.<minor>.<patch>, for example libopenmpt-0.8.11"
+check_tag "$tag"
 
 ROOT="$(git rev-parse --show-toplevel)"
 VENDOR="$ROOT/crates/openmpt-ext-sys/vendor/openmpt"
