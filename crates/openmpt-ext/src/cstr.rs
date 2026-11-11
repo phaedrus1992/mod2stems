@@ -3,8 +3,31 @@
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
+use crate::error::OpenmptError;
+use crate::error::Result;
+
 /// Owns a string from libopenmpt, and frees it on drop.
 pub(crate) struct LibString(*const c_char);
+
+/// Takes one string that libopenmpt allocated, and frees it.
+///
+/// A null pointer is an error and not an empty string, because the C functions
+/// return null when they fail, and an empty string means "no value" for several
+/// of them.
+///
+/// # Errors
+///
+/// Returns an error when libopenmpt gave no string.
+pub(crate) fn take_required(ptr: *const c_char, op: &'static str, input: &str) -> Result<String> {
+    LibString::take(ptr).ok_or_else(|| {
+        OpenmptError::new(
+            op,
+            input,
+            "libopenmpt gave no string",
+            Some("the module may hold text that libopenmpt cannot convert"),
+        )
+    })
+}
 
 impl LibString {
     /// Copies the string into a `String` and frees it at once.

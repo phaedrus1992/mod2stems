@@ -3,7 +3,7 @@
 use std::ffi::CString;
 use std::os::raw::c_char;
 
-use crate::cstr::LibString;
+use crate::cstr::take_required;
 use crate::error::OpenmptError;
 use crate::error::Result;
 use crate::module::Module;
@@ -35,29 +35,36 @@ impl LibraryInfo {
 
 /// Reads one info string about the linked libopenmpt.
 ///
-/// The value is a property of the linked library, not of a module. An unknown
-/// key is impossible here, so this function cannot fail.
-#[must_use]
-pub fn library_info(key: LibraryInfo) -> String {
-    let Ok(name) = CString::new(key.key()) else {
-        return String::new();
-    };
+/// The value is a property of the linked library, not of a module.
+///
+/// # Errors
+///
+/// Returns an error when libopenmpt cannot give the string. An unknown key is
+/// impossible here, because every [`LibraryInfo`] variant names a real key.
+pub fn library_info(key: LibraryInfo) -> Result<String> {
+    let name = CString::new(key.key()).map_err(|_| {
+        OpenmptError::new(
+            "library info",
+            key.key(),
+            "the key holds a NUL byte",
+            Some("this is a crate bug: a LibraryInfo key must be text with no NUL"),
+        )
+    })?;
     // SAFETY: `name` is a valid NUL-terminated string. libopenmpt owns the result.
     let ptr = unsafe { openmpt_ext_sys::openmpt_get_string(name.as_ptr()) };
-    LibString::take(ptr).unwrap_or_default()
+    take_required(ptr, "library info", key.key())
 }
 
 impl Module {
     /// Returns the metadata keys of this module.
-    pub fn metadata_keys(&self) -> Vec<String> {
-        // SAFETY: the handle is live. The list is owned by the caller.
-        let list = LibString::take(unsafe {
-            openmpt_ext_sys::openmpt_module_get_metadata_keys(self.core())
-        });
-        let Some(list) = list else {
-            return Vec::new();
-        };
-        list.split(';').map(str::to_owned).collect()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when libopenmpt cannot give the key list.
+    pub fn metadata_keys(&self) -> Result<Vec<String>> {
+        let ptr = unsafe { openmpt_ext_sys::openmpt_module_get_metadata_keys(self.core()) };
+        let list = take_required(ptr, "metadata keys", "this module")?;
+        Ok(list.split(';').map(str::to_owned).collect())
     }
 
     /// Returns the value of one metadata key.
@@ -67,20 +74,22 @@ impl Module {
     ///
     /// # Errors
     ///
-    /// Returns an error when the key holds a NUL byte.
+    /// Returns an error when the key holds a NUL byte, or when libopenmpt cannot
+    /// read the value. A read failure is an error, not an empty string, because
+    /// an empty string is also the answer for a key that the module does not
+    /// carry.
     pub fn metadata(&self, key: &str) -> Result<String> {
-        let name = CString::new(key).map_err(|_| OpenmptError {
-            op: "metadata",
-            input: key.to_owned(),
-            code: None,
-            message: "the key holds a NUL byte".to_owned(),
-            hint: Some("a metadata key must be text with no NUL"),
-            log: Vec::new(),
+        let name = CString::new(key).map_err(|_| {
+            OpenmptError::new(
+                "metadata",
+                key,
+                "the key holds a NUL byte",
+                Some("a metadata key must be text with no NUL"),
+            )
         })?;
-        // SAFETY: the handle is live, and `name` is a valid C string.
         let ptr =
             unsafe { openmpt_ext_sys::openmpt_module_get_metadata(self.core(), name.as_ptr()) };
-        Ok(LibString::take(ptr).unwrap_or_default())
+        take_required(ptr, "metadata", key)
     }
 
     /// Returns the number of channels.
@@ -165,7 +174,7 @@ impl Module {
     fn name(&self, index: i32, kind: Kind) -> Result<String> {
         check_index("name", kind.name(), index, kind.count(self))?;
         let ptr = kind.get(self.core(), index);
-        Ok(LibString::take(ptr).unwrap_or_default())
+        take_required(ptr, "name", &format!("{} {index}", kind.name()))
     }
 }
 

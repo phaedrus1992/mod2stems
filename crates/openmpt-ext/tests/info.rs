@@ -19,7 +19,7 @@ fn load() -> Result<Module, String> {
 fn library_version_is_0_8_10() -> Result<(), String> {
     // The full string appends the source revision, such as `0.8.10+r25840`, so
     // only the version prefix is stable.
-    let version = library_info(LibraryInfo::LibraryVersion);
+    let version = library_info(LibraryInfo::LibraryVersion).map_err(|error| error.to_string())?;
     if !version.starts_with("0.8.10") {
         return Err(format!(
             "library_version is {version:?}, expected it to start with \"0.8.10\""
@@ -30,7 +30,7 @@ fn library_version_is_0_8_10() -> Result<(), String> {
 
 #[test]
 fn source_revision_is_pinned() -> Result<(), String> {
-    let revision = library_info(LibraryInfo::SourceRevision);
+    let revision = library_info(LibraryInfo::SourceRevision).map_err(|error| error.to_string())?;
     if revision != openmpt_ext_sys::PIN_SVN_REVISION {
         return Err(format!(
             "source_revision is {revision:?}, expected {:?}",
@@ -42,7 +42,7 @@ fn source_revision_is_pinned() -> Result<(), String> {
 
 #[test]
 fn metadata_keys_include_type_and_title() -> Result<(), String> {
-    let keys = load()?.metadata_keys();
+    let keys = load()?.metadata_keys().map_err(|error| error.to_string())?;
     for wanted in ["type", "title"] {
         if !keys.iter().any(|key| key == wanted) {
             return Err(format!("metadata_keys has no {wanted:?}: {keys:?}"));
