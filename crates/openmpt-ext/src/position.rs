@@ -2,43 +2,12 @@
 
 use std::os::raw::c_int;
 
+use crate::command::Command;
 use crate::error::OpenmptError;
 use crate::error::Result;
 use crate::info::check_index;
 use crate::module::Module;
-
-/// One field of a pattern cell, with the `OPENMPT_MODULE_COMMAND_*` id.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Command {
-    /// The note.
-    Note,
-    /// The instrument or sample number.
-    Instrument,
-    /// The volume column effect.
-    VolumeEffect,
-    /// The effect number.
-    Effect,
-    /// The volume column value.
-    Volume,
-    /// The effect parameter.
-    Parameter,
-}
-
-impl Command {
-    /// Returns the id that libopenmpt accepts.
-    fn id(self) -> c_int {
-        match self {
-            // These values come from the `OPENMPT_MODULE_COMMAND_*` defines in
-            // `libopenmpt.h`. The bindings do not export them.
-            Self::Note => 0,
-            Self::Instrument => 1,
-            Self::VolumeEffect => 2,
-            Self::Effect => 3,
-            Self::Volume => 4,
-            Self::Parameter => 5,
-        }
-    }
-}
+use crate::order::OrderEntry;
 
 impl Module {
     /// Selects one subsong.
@@ -69,8 +38,11 @@ impl Module {
     ///
     /// # Errors
     ///
-    /// Returns an error when libopenmpt rejects the count.
+    /// Returns an error when `count` is negative. The library reads a negative
+    /// count as "repeat forever", and a render loop that waits for the song end
+    /// then never stops. This crate renders one pass of the order list at most.
     pub fn set_repeat_count(&mut self, count: i32) -> Result<()> {
+        check_repeat_count(count)?;
         self.clear_error();
         // SAFETY: the handle is live. The count is a plain value.
         let ok = unsafe { openmpt_ext_sys::openmpt_module_set_repeat_count(self.core(), count) };
@@ -92,6 +64,10 @@ impl Module {
     }
 
     /// Returns the current pattern.
+    ///
+    /// Returns `-1` when the current order plays no pattern. The library gives
+    /// `-1` for an out-of-range order and for an order entry that holds no
+    /// pattern data, so `-1` is a data value here, not an error.
     #[must_use]
     pub fn current_pattern(&self) -> i32 {
         // SAFETY: the handle is live. The call only reads a counter.
@@ -138,27 +114,49 @@ impl Module {
         Ok(seconds)
     }
 
-    /// Returns the pattern that one order plays.
+    /// Returns the order-list entry at one position.
+    ///
+    /// A skip ("+++") and a stop ("---") entry are order-list markers, not
+    /// pattern indices. The library gives their raw sentinel values (`65534` and
+    /// `65535`), so this crate reports them as their own variants.
     ///
     /// # Errors
     ///
     /// Returns an error when `order` is outside `0..num_orders`.
-    pub fn order_pattern(&self, order: i32) -> Result<i32> {
-        check_index("order pattern", "order", order, self.num_orders())?;
+    pub fn order_entry(&self, order: i32) -> Result<OrderEntry> {
+        check_index("order entry", "order", order, self.num_orders())?;
         // SAFETY: the handle is live, and the order is in range.
-        Ok(unsafe { openmpt_ext_sys::openmpt_module_get_order_pattern(self.core(), order) })
+        let (raw, skip, stop) = unsafe {
+            (
+                openmpt_ext_sys::openmpt_module_get_order_pattern(self.core(), order),
+                openmpt_ext_sys::openmpt_module_is_order_skip_entry(self.core(), order) != 0,
+                openmpt_ext_sys::openmpt_module_is_order_stop_entry(self.core(), order) != 0,
+            )
+        };
+        Ok(OrderEntry::new(raw, skip, stop))
     }
 
     /// Returns the number of rows in one pattern.
     ///
     /// # Errors
     ///
-    /// Returns an error when `pattern` is outside `0..num_patterns`.
+    /// Returns an error when `pattern` is outside `0..num_patterns`, and when
+    /// the index is inside that range but holds no pattern data. A module can
+    /// leave a gap, because the count of patterns is the highest valid index
+    /// plus one.
     pub fn pattern_num_rows(&self, pattern: i32) -> Result<i32> {
         check_index("pattern rows", "pattern", pattern, self.num_patterns())?;
         // SAFETY: the handle is live, and the pattern is in range.
         let rows =
             unsafe { openmpt_ext_sys::openmpt_module_get_pattern_num_rows(self.core(), pattern) };
+        if rows == 0 {
+            return Err(OpenmptError::new(
+                "pattern rows",
+                format!("pattern {pattern}"),
+                "this module holds no data for this pattern",
+                Some("the order list may refer to a pattern index that the module does not fill"),
+            ));
+        }
         Ok(rows)
     }
 
@@ -199,6 +197,26 @@ impl Module {
         }
         self.check_last_error(op, input)
     }
+}
+
+/// Rejects a repeat count that this crate does not accept.
+///
+/// The library reads any negative count as "repeat forever". A render loop that
+/// waits for the song end never stops with that value.
+///
+/// # Errors
+///
+/// Returns an error that names the count and the valid range.
+fn check_repeat_count(count: i32) -> Result<()> {
+    if count >= 0 {
+        return Ok(());
+    }
+    Err(OpenmptError::new(
+        "set repeat count",
+        format!("count {count}"),
+        "this crate renders one pass of the order list at most",
+        Some("use a count of 0, or a positive number of repeats"),
+    ))
 }
 
 /// Rejects a subsong index that this crate does not accept.

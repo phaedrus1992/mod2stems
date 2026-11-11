@@ -4,6 +4,7 @@ mod support;
 
 use openmpt_ext::Command;
 use openmpt_ext::Module;
+use openmpt_ext::OrderEntry;
 
 /// Loads the simple test file.
 fn load() -> Result<Module, String> {
@@ -148,11 +149,55 @@ fn pattern_num_rows_out_of_range() -> Result<(), String> {
 }
 
 #[test]
-fn order_pattern_reads_the_order_list() -> Result<(), String> {
+fn order_entry_reads_the_order_list() -> Result<(), String> {
     let module = load()?;
-    let pattern = module.order_pattern(0).map_err(|error| error.to_string())?;
-    if pattern != 0 {
-        return Err(format!("order 0 plays pattern {pattern}, expected 0"));
+    let entry = module.order_entry(0).map_err(|error| error.to_string())?;
+    if entry != OrderEntry::Pattern(0) {
+        return Err(format!("order 0 gave {entry:?}, expected Pattern(0)"));
+    }
+    Ok(())
+}
+
+#[test]
+fn order_entry_rejects_out_of_range_order() -> Result<(), String> {
+    let module = load()?;
+    let error = module.order_entry(9).err();
+    let Some(error) = error else {
+        return Err("order 9 must be out of range".to_owned());
+    };
+    if error.input != "order 9" {
+        return Err(format!("input is {:?}, expected \"order 9\"", error.input));
+    }
+    Ok(())
+}
+
+#[test]
+fn repeat_count_rejects_negative() -> Result<(), String> {
+    // The library reads -1, and every other negative value, as "repeat
+    // forever", so a render loop that waits for the song end never stops.
+    let mut module = load()?;
+    for count in [-1, i32::MIN] {
+        let error = module.set_repeat_count(count).err();
+        let Some(error) = error else {
+            return Err(format!("a repeat count of {count} must be an error"));
+        };
+        if !error.message.contains("one pass") {
+            return Err(format!(
+                "message is {:?}, expected it to name one pass",
+                error.message
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn repeat_count_accepts_zero_and_positive() -> Result<(), String> {
+    let mut module = load()?;
+    for count in [0, 3] {
+        module
+            .set_repeat_count(count)
+            .map_err(|error| error.to_string())?;
     }
     Ok(())
 }

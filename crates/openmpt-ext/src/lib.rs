@@ -8,6 +8,7 @@
     reason = "this crate is the safe boundary over the C library"
 )]
 
+mod command;
 mod cstr;
 mod ctl;
 mod error;
@@ -15,9 +16,11 @@ mod info;
 mod initial_ctl;
 mod interactive;
 mod module;
+mod order;
 mod position;
 mod render;
 
+pub use command::Command;
 pub use ctl::RenderParam;
 pub use error::OpenmptError;
 pub use error::Result;
@@ -25,5 +28,5 @@ pub use info::LibraryInfo;
 pub use info::library_info;
 pub use initial_ctl::InitialCtl;
 pub use module::Module;
-pub use position::Command;
+pub use order::OrderEntry;
 pub use render::SAMPLE_RATE_RANGE;
