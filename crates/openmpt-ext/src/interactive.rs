@@ -23,7 +23,7 @@ impl Module {
         self.clear_error();
         // SAFETY: the handle is live, and the channel is in range.
         let ok = unsafe { set(ext, channel, c_int::from(mute)) };
-        check_ok(self, "channel mute", &format!("channel {channel}"), ok)
+        self.check_ok("channel mute", &format!("channel {channel}"), ok)
     }
 
     /// Reports whether one channel is muted.
@@ -66,7 +66,7 @@ impl Module {
         self.clear_error();
         // SAFETY: the handle is live, and the channel and volume are valid.
         let ok = unsafe { set(ext, channel, volume) };
-        check_ok(self, "channel volume", &format!("channel {channel}"), ok)
+        self.check_ok("channel volume", &format!("channel {channel}"), ok)
     }
 
     /// Returns the volume of one channel.
@@ -109,7 +109,7 @@ impl Module {
         self.clear_error();
         // SAFETY: the handle is live, and the index is in range.
         let ok = unsafe { set(ext, index, c_int::from(mute)) };
-        check_ok(self, "instrument mute", &format!("{kind} {index}"), ok)
+        self.check_ok("instrument mute", &format!("{kind} {index}"), ok)
     }
 
     /// Reports whether one instrument is muted.
@@ -155,14 +155,6 @@ fn missing(function: &'static str) -> OpenmptError {
         format!("libopenmpt gave no {function} function"),
         Some("the vendored libopenmpt must build with the interactive interface"),
     )
-}
-
-/// Turns a return code of zero into an error.
-fn check_ok(module: &mut Module, op: &'static str, input: &str, ok: c_int) -> Result<()> {
-    if ok != 0 {
-        return Ok(());
-    }
-    module.check_last_error(op, input)
 }
 
 /// Turns the `-1` that a mute getter returns on failure into an error.

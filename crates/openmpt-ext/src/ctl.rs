@@ -136,7 +136,7 @@ impl Module {
                 c_int::from(value),
             )
         };
-        self.ctl_result("ctl set", key, ok)
+        self.check_ok("ctl set", key, ok)
     }
 
     /// Sets an integer ctl.
@@ -152,7 +152,7 @@ impl Module {
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_integer(self.core(), name.as_ptr(), value)
         };
-        self.ctl_result("ctl set", key, ok)
+        self.check_ok("ctl set", key, ok)
     }
 
     /// Sets a float ctl.
@@ -168,7 +168,7 @@ impl Module {
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_floatingpoint(self.core(), name.as_ptr(), value)
         };
-        self.ctl_result("ctl set", key, ok)
+        self.check_ok("ctl set", key, ok)
     }
 
     /// Sets a text ctl.
@@ -193,7 +193,7 @@ impl Module {
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_ctl_set_text(self.core(), name.as_ptr(), text.as_ptr())
         };
-        self.ctl_result("ctl set", key, ok)
+        self.check_ok("ctl set", key, ok)
     }
 
     /// Reads a boolean ctl.
@@ -275,7 +275,7 @@ impl Module {
         let ok = unsafe {
             openmpt_ext_sys::openmpt_module_set_render_param(self.core(), param.id(), value)
         };
-        self.ctl_result("set render param", &format!("{} {value}", param.name()), ok)
+        self.check_ok("set render param", &format!("{} {value}", param.name()), ok)
     }
 
     /// Reads one render parameter.
@@ -294,7 +294,7 @@ impl Module {
                 &raw mut value,
             )
         };
-        self.ctl_result("render param", param.name(), ok)?;
+        self.check_ok("render param", param.name(), ok)?;
         Ok(value)
     }
 
@@ -324,14 +324,6 @@ impl Module {
                 Some("a ctl key must be text with no NUL"),
             )
         })
-    }
-
-    /// Turns a return code of zero into an error.
-    fn ctl_result(&mut self, op: &'static str, input: &str, ok: c_int) -> Result<()> {
-        if ok != 0 {
-            return Ok(());
-        }
-        self.check_last_error(op, input)
     }
 }
 

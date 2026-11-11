@@ -1,5 +1,6 @@
 //! The library info strings and the module metadata.
 
+use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -13,8 +14,6 @@ use crate::module::Module;
 pub enum LibraryInfo {
     /// The release version, such as `"0.8.10"`.
     LibraryVersion,
-    /// The build features of the linked library.
-    Build,
     /// The URL of the source tree.
     SourceUrl,
     /// The revision of the source tree.
@@ -23,12 +22,11 @@ pub enum LibraryInfo {
 
 impl LibraryInfo {
     /// Returns the key that `openmpt_get_string` reads.
-    fn key(self) -> &'static str {
+    fn key(self) -> &'static CStr {
         match self {
-            Self::LibraryVersion => "library_version",
-            Self::Build => "build",
-            Self::SourceUrl => "source_url",
-            Self::SourceRevision => "source_revision",
+            Self::LibraryVersion => c"library_version",
+            Self::SourceUrl => c"source_url",
+            Self::SourceRevision => c"source_revision",
         }
     }
 }
@@ -42,17 +40,10 @@ impl LibraryInfo {
 /// Returns an error when libopenmpt cannot give the string. An unknown key is
 /// impossible here, because every [`LibraryInfo`] variant names a real key.
 pub fn library_info(key: LibraryInfo) -> Result<String> {
-    let name = CString::new(key.key()).map_err(|_| {
-        OpenmptError::new(
-            "library info",
-            key.key(),
-            "the key holds a NUL byte",
-            Some("this is a crate bug: a LibraryInfo key must be text with no NUL"),
-        )
-    })?;
-    // SAFETY: `name` is a valid NUL-terminated string. libopenmpt owns the result.
+    let name = key.key();
+    // SAFETY: `name` is a NUL-terminated string. libopenmpt owns the result.
     let ptr = unsafe { openmpt_ext_sys::openmpt_get_string(name.as_ptr()) };
-    take_required(ptr, "library info", key.key())
+    take_required(ptr, "library info", &name.to_string_lossy())
 }
 
 impl Module {
@@ -238,12 +229,10 @@ pub(crate) fn check_index(op: &'static str, kind: &str, index: i32, count: i32) 
     if (0..count).contains(&index) {
         return Ok(());
     }
-    Err(OpenmptError {
+    Err(OpenmptError::new(
         op,
-        input: format!("{kind} {index}"),
-        code: None,
-        message: format!("this module has no such {kind}: the valid range is 0..{count}"),
-        hint: Some("read the count first, and use an index below it"),
-        log: Vec::new(),
-    })
+        format!("{kind} {index}"),
+        format!("this module has no such {kind}: the valid range is 0..{count}"),
+        Some("read the count first, and use an index below it"),
+    ))
 }

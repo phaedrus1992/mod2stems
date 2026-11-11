@@ -1,10 +1,8 @@
 //! Ownership of one libopenmpt module and its interactive extension.
 
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ffi::CString;
-use std::marker::PhantomData;
 use std::os::raw::c_char;
 use std::os::raw::c_int;
 use std::os::raw::c_void;
@@ -17,7 +15,7 @@ use openmpt_ext_sys::openmpt_module_ext;
 use openmpt_ext_sys::openmpt_module_ext_interface_interactive;
 use openmpt_ext_sys::openmpt_module_initial_ctl;
 
-use crate::cstr::LibString;
+use crate::cstr::take;
 use crate::cstr::take_required;
 use crate::error::OpenmptError;
 use crate::error::Result;
@@ -32,10 +30,9 @@ pub struct Module {
     core: *mut openmpt_module,
     interactive: openmpt_module_ext_interface_interactive,
     pub(crate) ctls: HashSet<String>,
+    // The `RefCell` makes the type `!Sync` without a lock. The log callback
+    // runs on the calling thread and writes here.
     sink: Box<RefCell<Vec<String>>>,
-    // The marker makes the type `!Sync` without a lock. The log callback runs on
-    // the calling thread and writes through a `RefCell`.
-    _not_sync: PhantomData<Cell<()>>,
 }
 
 impl Module {
@@ -73,7 +70,7 @@ impl Module {
             )
         };
         if ext.is_null() {
-            let message = LibString::take(message);
+            let message = take(message);
             return Err(load_error(&sink, error, message, bytes.len()));
         }
         Module::finish(ext, sink, ctls)
@@ -120,7 +117,7 @@ impl Module {
         }
         // SAFETY: the handle is live. The module owns the message.
         let ptr = unsafe { openmpt_ext_sys::openmpt_module_error_get_last_message(self.core) };
-        let message = LibString::take(ptr).unwrap_or_else(|| format!("libopenmpt error {code}"));
+        let message = take(ptr).unwrap_or_else(|| format!("libopenmpt error {code}"));
         Err(OpenmptError {
             op,
             input: input.into(),
@@ -129,6 +126,17 @@ impl Module {
             hint: None,
             log: self.take_log(),
         })
+    }
+
+    /// Turns a return code of zero into an error.
+    ///
+    /// A C function that returns zero on failure leaves the cause in the stored
+    /// error, so a caller must clear that error before the call.
+    pub(crate) fn check_ok(&mut self, op: &'static str, input: &str, ok: c_int) -> Result<()> {
+        if ok != 0 {
+            return Ok(());
+        }
+        self.check_last_error(op, input)
     }
 
     /// Gets the interface, checks the ctl keys, and builds the value.
@@ -181,14 +189,13 @@ impl Module {
             interactive,
             ctls: known,
             sink,
-            _not_sync: PhantomData,
         })
     }
 }
 
-// The `!Sync` marker keeps two threads off one module. A move to one thread is
-// safe: libopenmpt keeps no thread-local state for a module, and the log sink
-// lives in a `RefCell` that the move carries with it.
+// The sink is a `RefCell`, so the type is already `!Sync` and two threads
+// cannot share one module. A move to one thread is safe: libopenmpt keeps no
+// thread-local state for a module, and the move carries the sink along.
 // SAFETY: the handle and the sink move together and are used by one thread.
 unsafe impl Send for Module {}
 
@@ -282,16 +289,14 @@ impl EncodedCtls {
     /// Converts the ctls, and appends the null pair that ends the array.
     fn new(ctls: &[InitialCtl]) -> Result<Self> {
         let mut strings = Vec::with_capacity(ctls.len() * 2);
+        let mut pairs = Vec::with_capacity(ctls.len() + 1);
         for ctl in ctls {
+            // Each push reallocates the vector, so the pointers are taken only
+            // after every string is in place. `strings` never moves again.
             strings.push(to_cstring(&ctl.key)?);
             strings.push(to_cstring(&ctl.value)?);
         }
-        let mut pairs = Vec::with_capacity(ctls.len() + 1);
-        for index in 0..ctls.len() {
-            let (Some(key), Some(value)) = (strings.get(index * 2), strings.get(index * 2 + 1))
-            else {
-                continue;
-            };
+        for [key, value] in strings.as_chunks::<2>().0 {
             pairs.push(openmpt_module_initial_ctl {
                 ctl: key.as_ptr(),
                 value: value.as_ptr(),
@@ -315,13 +320,13 @@ impl EncodedCtls {
 
 /// Converts one text field to a `CString`.
 fn to_cstring(text: &str) -> Result<CString> {
-    CString::new(text).map_err(|_| OpenmptError {
-        op: "set initial ctl",
-        input: text.to_owned(),
-        code: None,
-        message: "this text holds a NUL byte".to_owned(),
-        hint: Some("a ctl key and a ctl value must be text with no NUL"),
-        log: Vec::new(),
+    CString::new(text).map_err(|_| {
+        OpenmptError::new(
+            "set initial ctl",
+            text,
+            "this text holds a NUL byte",
+            Some("a ctl key and a ctl value must be text with no NUL"),
+        )
     })
 }
 

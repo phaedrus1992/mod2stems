@@ -1,7 +1,5 @@
 //! The subsong selection, the playback position, and the pattern data.
 
-use std::os::raw::c_int;
-
 use crate::command::Command;
 use crate::error::OpenmptError;
 use crate::error::Result;
@@ -22,7 +20,7 @@ impl Module {
         self.clear_error();
         // SAFETY: the handle is live, and the index is in range.
         let ok = unsafe { openmpt_ext_sys::openmpt_module_select_subsong(self.core(), index) };
-        self.checked("select subsong", &format!("subsong {index}"), ok)
+        self.check_ok("select subsong", &format!("subsong {index}"), ok)
     }
 
     /// Returns the selected subsong.
@@ -46,7 +44,7 @@ impl Module {
         self.clear_error();
         // SAFETY: the handle is live. The count is a plain value.
         let ok = unsafe { openmpt_ext_sys::openmpt_module_set_repeat_count(self.core(), count) };
-        self.checked("set repeat count", &format!("count {count}"), ok)
+        self.check_ok("set repeat count", &format!("count {count}"), ok)
     }
 
     /// Returns the current order.
@@ -191,14 +189,6 @@ impl Module {
             )
         };
         Ok(value)
-    }
-
-    /// Turns a return code of zero into an error.
-    fn checked(&mut self, op: &'static str, input: &str, ok: c_int) -> Result<()> {
-        if ok != 0 {
-            return Ok(());
-        }
-        self.check_last_error(op, input)
     }
 }
 

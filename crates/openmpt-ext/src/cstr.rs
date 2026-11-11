@@ -1,4 +1,4 @@
-//! A guard for a string that libopenmpt gives out and expects the caller to free.
+//! Strings that libopenmpt gives out and expects the caller to free.
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
@@ -6,8 +6,23 @@ use std::os::raw::c_char;
 use crate::error::OpenmptError;
 use crate::error::Result;
 
-/// Owns a string from libopenmpt, and frees it on drop.
-pub(crate) struct LibString(*const c_char);
+/// Copies a string that libopenmpt allocated, and frees it at once.
+///
+/// Returns `None` for a null pointer. A string that is not UTF-8 is copied with
+/// replacement characters, because a module file controls the bytes.
+pub(crate) fn take(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: the pointer is not null, and every libopenmpt string function
+    // returns a NUL-terminated string.
+    let bytes = unsafe { CStr::from_ptr(ptr) }.to_bytes();
+    let owned = String::from_utf8_lossy(bytes).into_owned();
+    // SAFETY: the pointer came from a libopenmpt string function, which
+    // transfers ownership to the caller. It is freed one time only, here.
+    unsafe { openmpt_ext_sys::openmpt_free_string(ptr) };
+    Some(owned)
+}
 
 /// Takes one string that libopenmpt allocated, and frees it.
 ///
@@ -19,7 +34,7 @@ pub(crate) struct LibString(*const c_char);
 ///
 /// Returns an error when libopenmpt gave no string.
 pub(crate) fn take_required(ptr: *const c_char, op: &'static str, input: &str) -> Result<String> {
-    LibString::take(ptr).ok_or_else(|| {
+    take(ptr).ok_or_else(|| {
         OpenmptError::new(
             op,
             input,
@@ -29,44 +44,15 @@ pub(crate) fn take_required(ptr: *const c_char, op: &'static str, input: &str) -
     })
 }
 
-impl LibString {
-    /// Copies the string into a `String` and frees it at once.
-    ///
-    /// Returns `None` for a null pointer. A string that is not UTF-8 is copied
-    /// with replacement characters, because a module file controls the bytes.
-    pub(crate) fn take(ptr: *const c_char) -> Option<String> {
-        if ptr.is_null() {
-            return None;
-        }
-        // SAFETY: the pointer is not null, and every libopenmpt string function
-        // returns a NUL-terminated string.
-        let bytes = unsafe { CStr::from_ptr(ptr) }.to_bytes();
-        let owned = String::from_utf8_lossy(bytes).into_owned();
-        drop(Self(ptr));
-        Some(owned)
-    }
-}
-
-impl Drop for LibString {
-    fn drop(&mut self) {
-        if self.0.is_null() {
-            return;
-        }
-        // SAFETY: the pointer came from a libopenmpt string function, which
-        // transfers ownership to the caller. It is freed one time only, here.
-        unsafe { openmpt_ext_sys::openmpt_free_string(self.0) };
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::LibString;
+    use super::take;
     use std::ffi::CString;
 
     #[test]
     fn take_copies_a_string() -> Result<(), String> {
         let source = CString::new("hello").map_err(|error| error.to_string())?;
-        let text = LibString::take(source.into_raw());
+        let text = take(source.into_raw());
         if text.as_deref() != Some("hello") {
             return Err(format!("got {text:?}, expected Some(\"hello\")"));
         }
@@ -75,7 +61,7 @@ mod tests {
 
     #[test]
     fn take_rejects_null() -> Result<(), String> {
-        match LibString::take(std::ptr::null()) {
+        match take(std::ptr::null()) {
             None => Ok(()),
             Some(text) => Err(format!("a null pointer gave {text:?}")),
         }
@@ -84,7 +70,7 @@ mod tests {
 
 #[cfg(test)]
 mod properties {
-    use super::LibString;
+    use super::take;
     use proptest::collection::vec;
     use proptest::prelude::any;
     use proptest::prelude::prop_assert;
@@ -99,7 +85,7 @@ mod properties {
         fn take_decodes_like_from_utf8_lossy(bytes in vec(1_u8..=255, 0..64)) {
             // `CString::new` rejects a NUL, so the draw starts at 1.
             let source = CString::new(bytes.clone()).unwrap_or_default();
-            let taken = LibString::take(source.into_raw());
+            let taken = take(source.into_raw());
             let expected = String::from_utf8_lossy(&bytes);
             prop_assert_eq!(taken.as_deref(), Some(expected.as_ref()));
         }
@@ -111,7 +97,7 @@ mod properties {
             let Ok(source) = CString::new(bytes) else {
                 return Ok(());
             };
-            prop_assert!(LibString::take(source.into_raw()).is_some());
+            prop_assert!(take(source.into_raw()).is_some());
         }
     }
 }
