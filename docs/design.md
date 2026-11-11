@@ -39,7 +39,8 @@ The export must preserve:
 - Tracker timing, pitch changes, sample offsets, loops, envelopes, and supported
   effect commands.
 - Stereo samples, channel panning, and panning automation in stereo output.
-- Relative levels, leading silence, common track origins, and the agreed tail.
+- Relative levels, leading silence, and common track origins.
+  The tail is the render up to the library's song end, not a drained voice beyond it (section 4.2).
 - Visibility of warnings about unsupported playback features, surfaced as
   diagnostics rather than hidden in a library log.
 
@@ -81,6 +82,16 @@ Libopenmpt also exposes linear and cubic interpolation. Advanced interpolation
 controls can be added after the profiles are validated; they are not required for
 the initial CLI. Amiga emulation overrides ordinary interpolation, so conflicting
 settings must not be silently accepted.
+
+The library does not report whether Amiga emulation applies.
+`render.resampler.emulate_amiga` accepts `true` and reads back `true` on a module that never uses the Amiga resampler.
+It reads back the resolved setting, not an applicability result.
+The resampler applies only when the library's internal Amiga flag is set, and no C API exposes that flag.
+The module type does not predict the flag either: two loaders clear it after they load as MOD, and two others set it per song content.
+The amiga profile therefore proves applicability by comparison: render the module with emulation on and off, and require the two renders to differ.
+An identical result means the profile does not apply, so the export fails explicitly.
+The comparison uses the unmuted trace render as its "off" side and adds one more unmuted render with emulation on.
+The profile code also rejects an explicit interpolation setting when Amiga emulation is enabled, because the library accepts both and lets Amiga win.
 
 The implementation owns profile settings and their defaults. Record the resolved
 configuration in each export, including library-owned defaults where they cannot
@@ -153,7 +164,10 @@ Two silencing methods exist in the stock interactive interface:
 | Method | Keeps effects on the silenced channel | Limit |
 |--------|---------------------------------------|-------|
 | `set_channel_mute_status` | Yes, except under ScreamTracker 3 rules | Also mutes NNA voices that the channel owns. |
-| `set_channel_volume` set to 0 | Yes | A channel-volume pattern command (IT and MPTM) overrides it. A song restart resets it. |
+| `set_channel_volume` set to 0 | Yes | A channel-volume pattern command (IT and MPTM) overrides it, and so does a channel volume slide. A song restart resets it. |
+
+The ScreamTracker 3 effect gate reads the channel mute flag, not the channel volume, so zero channel volume does not trigger it.
+Both channel-volume writes in the effect engine overwrite the value that the silencing set: the channel volume command, and the channel volume slide.
 
 Select the method from the module's playback type.
 Use zero channel volume for modules with ScreamTracker 3 rules, and channel mute for the other types.
@@ -181,14 +195,19 @@ Exporting all subsongs into separate sets can follow later. Do not inherit the
 library's unspecified default selection.
 
 The initial export plays the selected subsong without additional whole-song
-repetitions, while honoring its internal pattern flow. End-of-song detection,
-fade behavior, and treatment of ringing sample/effect tails must be validated
-against fixtures before the final end policy is chosen (see section 8).
+repetitions, while honoring its internal pattern flow.
+Set `play.at_end` to `stop` for every render.
+The library default, `fadeout`, adds a 100 ms fade after the end of the song, and `stop` ends the render at the song end with no fade.
+Do not use `continue`: it replays the module instead of draining the voices.
+The library stops the render at the song end even when a voice still rings, and no stock control drains that voice.
+The common timeline therefore ends at the song end, and the export must state this limit rather than promise hidden tail audio.
+Validation evidence: `docs/design/pre-implementation-validation.md` (section 5).
 
 Preserve leading silence and render each track from the same origin. Determine a
 common end from the longest completed render, including the unmuted render, and
-zero-pad shorter tracks. Never independently trim leading silence
-or truncate audible tails to an approximate duration estimate. Unexpected timing
+zero-pad shorter tracks. Never independently trim leading silence, and never shorten
+a render to an approximate duration estimate. A render ends where the library stops
+it, so "longest" is the library's song end. Unexpected timing
 or duration differences must be diagnosed before padding; padding is not a remedy
 for a divergent playthrough.
 
@@ -283,11 +302,16 @@ Two strategies exist, and they attribute voices differently:
 | Native instrument mute | `set_instrument_mute_status` on every non-target instrument. | By the instrument at each note event. | Libopenmpt checks the mute flag only when a note starts, and then sets the voice period to 0. A sample swap without a note escapes the check. A portamento note with a muted instrument stops the voice under it, and a later portamento starts from period 0. |
 
 Sample silencing keeps every playback decision unchanged: periods, volumes, envelopes, NNA (new note action) handling, and voice stealing.
-The design assumes that no libopenmpt playback decision reads sample values.
-The completeness check below verifies this assumption for each export.
 The mixer is linear in sample data, so the pair sum matches the channel stem within mixer rounding.
+One playback path breaks the assumption: the MED synth envelope reads sample bytes to set a volume factor.
+The MED adapter must reject a module that uses synth envelopes.
+The completeness check below verifies the assumption for each export and catches any other case.
+Validation evidence: `docs/design/pre-implementation-validation.md` (section 2).
 
 Native instrument mute changes playback state, so a native render needs its completeness check to pass.
+The mute flag has one audio-path reader: the note-start check that sets the voice period to 0.
+Every other reader gates plugin or MIDI output, so a muted instrument still plays a voice that started before the mute.
+That is why the risky events are the two that start or move a voice without a muting note event.
 That check alone is not sufficient.
 A sample swap puts the audio of one instrument into the render of another, and the pair sum still matches the channel stem.
 The played cells of the row trace show the two risky events: an instrument number with no note, and an instrument change on a portamento note.
@@ -417,7 +441,9 @@ Build a small fixture corpus before expanding output options. Cover:
 - Timing/global commands on muted channels and supported shared effects.
 - Speed, tempo, pattern jump, and pattern loop commands on a silenced channel of an S3M module and of a module from another loader with S3M playback rules. The row trace of each channel render must match the unmuted trace.
 - A channel-volume command (IT `Mxx`) on a silenced channel, which must not undo the silencing.
-- Randomized instruments, subsongs, pattern loops, end-of-song behavior, and tails.
+- Randomized instruments, subsongs, pattern loops, end-of-song behavior, and tails. The end policy test asserts that a rendered song ends without the 100 ms fade.
+- A module whose last note rings past the song end, which must end at the library's song end and record that limit.
+- A MED module with a synth envelope, which must fail pair export where the adapter rejects it.
 - Leading silence, silent channels, mono phase cancellation, and float headroom.
 - Pair export on/off behavior, including explicit disabling of an enabled setting
   and the absence of pair-specific work when disabled.
@@ -448,27 +474,24 @@ behavior. A smoother sound or a higher output sample rate is not itself a pass.
 ## 8. Decisions to validate before implementation is finalized
 
 The product direction is settled: faithful stems, stock libopenmpt, explicit
-playback character, and conventional resampling. These technical investigations
-must be resolved with evidence:
+playback character, and conventional resampling.
 
-- Establish and document the supported reconstruction envelope, especially random
-  instrument variation, voice allocation, and shared effects. If a format/feature
-  diverges, expose the limitation instead of claiming exact isolation.
-- Confirm that no libopenmpt playback decision reads sample values, so that sample silencing keeps the playback state. Decide the first set of formats that get a sample silencing adapter.
-- Measure how often native instrument mute fails the completeness check on real modules. The result decides if native mute is a useful second strategy or only a source of failed exports.
-- Confirm that the zero channel volume method covers every loader with S3M playback rules, and find any other playback type where muted channels skip effects.
-- Select an end/tail policy using the stock end controls and fixture renders.
-  Document any intentional fade and ensure maximum-duration termination is distinct
-  from a successfully completed export.
-- Confirm profile capability detection on supported platforms, and resolve how applicable Amiga modules are identified.
-  The build pins one libopenmpt version, so there is no minimum version to choose.
-  The runtime `get_ctls` check still applies, because a profile control may be absent.
-- Set default output rate, resource limits, encoding choices, and comparison
-  tolerances in named implementation configuration after validation.
+All seven technical questions are resolved.
+The evidence and the decisions are in `docs/design/pre-implementation-validation.md`.
+Their effect on this document is applied above.
 
-These are bounded validation tasks. Sample silencing is restricted to pair
-isolation and does not introduce sample enhancement or AI processing. This
-document defines the design; it does not start implementation.
+- Reconstruction envelope: the random state feeds instrument swing only. Each instance seeds from a process-wide generator that has no C API control. Randomized modules stay supported, with a comparison status instead of a claim of exact isolation.
+- Sample values: no playback decision reads sample values, except the MED synth envelope. Sample silencing therefore keeps playback state, and the MED adapter rejects synth envelopes.
+- Native instrument mute: the mute flag has one audio-path reader, on note start. The strategy stays the second choice, with its known risky events.
+- ScreamTracker 3 coverage: the effect gate reads the channel mute flag, not the channel volume. Zero channel volume therefore keeps effects for every loader with S3M playback rules. Two channel-volume effects can still overwrite the silencing, and the row trace detects that.
+- End policy: use `stop`. The default `fadeout` adds a 100 ms fade. Maximum-duration termination stays a separate failure.
+- Profiles: the library does not report Amiga applicability, and the module type does not predict it. The amiga profile compares an emulated render with a plain one. The profile code rejects a conflicting interpolation setting.
+- Defaults: the output rate decision is in the validation record, and the value lives in implementation configuration. The other settings keep the library defaults, and the profiles change what each profile names.
+
+Resource limits, encoding choices, and comparison tolerances stay open. They are named implementation configuration, and no validation question blocks them.
+
+Sample silencing is restricted to pair isolation and does not introduce sample enhancement or AI processing.
+This document defines the design; it does not start implementation.
 
 ## References
 
