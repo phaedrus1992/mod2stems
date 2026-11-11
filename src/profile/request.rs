@@ -79,7 +79,7 @@ impl ProfileRequest {
     pub fn resolve(self) -> Result<ProfileConfig, ProfileError> {
         let rate = self.checked_rate()?;
         let settings = self.resolve_settings()?;
-        Ok(settings.into_config(self.profile, rate))
+        Ok(ProfileConfig::new(self.profile, rate, settings))
     }
 
     /// Rejects an out-of-range rate before any render starts.

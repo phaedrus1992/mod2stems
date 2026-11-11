@@ -15,6 +15,7 @@ pub mod request;
 pub mod settings;
 
 pub use amiga::AmigaVerdict;
+pub use amiga::require_amiga_applies;
 pub use amiga::require_deterministic;
 pub use amiga::verify_amiga_applies;
 pub use config::ProfileConfig;

@@ -53,12 +53,6 @@ impl ProfileConfig {
         self.settings.amiga_model().is_some()
     }
 
-    /// Returns the interpolation filter length, when the profile names one.
-    #[must_use]
-    pub fn interpolation_filter_length(&self) -> Option<i32> {
-        self.settings.interpolation_filter_length()
-    }
-
     /// Returns the settings that this config carries.
     #[must_use]
     pub fn settings(&self) -> &ResolvedSettings {

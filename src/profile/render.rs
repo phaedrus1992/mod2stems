@@ -51,31 +51,38 @@ pub fn read_pass(
         Some(model) => enable_amiga(module, model, "the Amiga render control set")?,
         None => module
             .ctl_set_bool(crate::profile::apply::AMIGA_CTL, false)
-            .map_err(|error| library_error(&error, "the plain render control set"))?,
+            .map_err(|error| ProfileError::library(&error, "the plain render control set"))?,
     }
     module
         .ctl_set_text(AT_END_CTL, AT_END_STOP)
-        .map_err(|error| library_error(&error, "the render end control set"))?;
+        .map_err(|error| ProfileError::library(&error, "the render end control set"))?;
     let limit = frame_limit(rate, max_seconds);
     let mut out = Vec::new();
     let mut buf = vec![0.0_f32; BLOCK_FRAMES * 2];
     loop {
-        let frames = module
-            .read_float(rate, &mut buf)
-            .map_err(|error| library_error(&error, "the profile render"))?;
-        if frames == 0 {
-            break;
-        }
+        // The limit is checked before the read, so a reached limit stops the
+        // loop even when the library would return more samples.
         if out.len() / 2 >= limit {
             return Err(ProfileError::TooLong {
                 limit_seconds: max_seconds,
             });
+        }
+        let frames = module
+            .read_float(rate, &mut buf)
+            .map_err(|error| ProfileError::library(&error, "the profile render"))?;
+        if frames == 0 {
+            break;
         }
         // The library writes only `frames` frames. The tail of the buffer
         // still holds the previous block, so a copy of the whole buffer would
         // compare stale samples.
         let written = frames.saturating_mul(2);
         out.extend_from_slice(&buf[..written]);
+    }
+    if out.len() / 2 > limit {
+        return Err(ProfileError::TooLong {
+            limit_seconds: max_seconds,
+        });
     }
     Ok(out)
 }
@@ -88,15 +95,4 @@ fn frame_limit(rate: i32, max_seconds: u64) -> usize {
     let seconds = usize::try_from(max_seconds).unwrap_or(usize::MAX);
     let rate = usize::try_from(rate).unwrap_or(0);
     seconds.saturating_mul(rate)
-}
-
-/// Wraps a library error with the operation that failed.
-fn library_error(error: &openmpt_ext::OpenmptError, operation: &'static str) -> ProfileError {
-    ProfileError::Library {
-        operation,
-        message: format!(
-            "{} (input {:?}, code {:?}, hint {:?}, log {:?})",
-            error.message, error.input, error.code, error.hint, error.log
-        ),
-    }
 }

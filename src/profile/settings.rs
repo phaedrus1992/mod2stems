@@ -3,7 +3,6 @@
 use openmpt_ext::RenderParam;
 
 use crate::profile::AmigaModel;
-use crate::profile::config::ProfileConfig;
 
 /// The playback settings that a profile names.
 ///
@@ -74,11 +73,5 @@ impl ResolvedSettings {
             return Vec::new();
         };
         vec![(RenderParam::InterpolationFilterLength, length)]
-    }
-
-    /// Builds the config that carries these settings.
-    #[must_use]
-    pub(crate) fn into_config(self, profile: crate::profile::Profile, rate: i32) -> ProfileConfig {
-        ProfileConfig::new(profile, rate, self)
     }
 }

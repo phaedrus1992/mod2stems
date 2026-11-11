@@ -11,6 +11,7 @@ use mod2stems::ProfileConfig;
 use mod2stems::ProfileError;
 use mod2stems::ProfileRequest;
 use mod2stems::profile::AmigaVerdict;
+use mod2stems::profile::require_amiga_applies;
 use mod2stems::profile::require_deterministic;
 use mod2stems::profile::verify_amiga_applies;
 
@@ -79,7 +80,7 @@ fn compatible_records_the_resolved_settings() -> Result<(), String> {
     if config.amiga_enabled() {
         return Err("the compatible profile turns Amiga emulation on".to_owned());
     }
-    if config.interpolation_filter_length().is_some() {
+    if config.settings().interpolation_filter_length().is_some() {
         return Err("the compatible profile sets an interpolation filter length".to_owned());
     }
     if !config.settings().render_params().is_empty() {
@@ -97,10 +98,10 @@ fn clean_selects_windowed_sinc() -> Result<(), String> {
     if config.profile() != Profile::Clean {
         return Err(format!("the config profile is {:?}", config.profile()));
     }
-    if config.interpolation_filter_length() != Some(8) {
+    if config.settings().interpolation_filter_length() != Some(8) {
         return Err(format!(
             "the filter length is {:?}, expected Some(8)",
-            config.interpolation_filter_length()
+            config.settings().interpolation_filter_length()
         ));
     }
     if config.amiga_enabled() {
@@ -141,7 +142,7 @@ fn amiga_with_a_model_enables_emulation() -> Result<(), String> {
             config.amiga_model()
         ));
     }
-    if config.interpolation_filter_length().is_some() {
+    if config.settings().interpolation_filter_length().is_some() {
         return Err("the amiga profile sets an interpolation filter length".to_owned());
     }
     Ok(())
@@ -257,6 +258,20 @@ fn identical_renders_mean_the_profile_does_not_apply() -> Result<(), String> {
         return Err(format!("the verdict is {verdict:?}, expected DoesNotApply"));
     }
     Ok(())
+}
+
+#[test]
+fn a_verdict_that_does_not_apply_becomes_the_profile_error() -> Result<(), String> {
+    if require_amiga_applies(AmigaVerdict::Applies).is_err() {
+        return Err("the Applies verdict reported an error".to_owned());
+    }
+    match require_amiga_applies(AmigaVerdict::DoesNotApply) {
+        Ok(()) => Err("the DoesNotApply verdict reported a success".to_owned()),
+        Err(ProfileError::AmigaDoesNotApply) => Ok(()),
+        Err(error) => Err(format!(
+            "the error is {error:?}, expected AmigaDoesNotApply"
+        )),
+    }
 }
 
 #[test]

@@ -55,6 +55,22 @@ pub fn verify_amiga_applies(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerd
     Ok(AmigaVerdict::Applies)
 }
 
+/// Fails when the module does not use the Amiga resampler.
+///
+/// The export calls this after [`verify_amiga_applies`], so an `amiga` profile
+/// that the module cannot honor fails instead of rendering as plain audio.
+///
+/// # Errors
+///
+/// Returns [`ProfileError::AmigaDoesNotApply`] when the verdict is
+/// [`AmigaVerdict::DoesNotApply`].
+pub fn require_amiga_applies(verdict: AmigaVerdict) -> Result<(), ProfileError> {
+    match verdict {
+        AmigaVerdict::Applies => Ok(()),
+        AmigaVerdict::DoesNotApply => Err(ProfileError::AmigaDoesNotApply),
+    }
+}
+
 /// Reports whether two renders hold the same samples, bit for bit.
 fn same_samples(left: &[f32], right: &[f32]) -> bool {
     left.iter()

@@ -23,13 +23,6 @@ pub enum ProfileError {
         /// The model that the caller named.
         model: &'static str,
     },
-    /// The caller named a setting next to a profile that owns that setting.
-    ConflictingSettings {
-        /// The profile or setting that owns the value.
-        first: &'static str,
-        /// The value that the caller named as well.
-        second: &'static str,
-    },
     /// The output rate lies outside the range that the renderer accepts.
     RateOutOfRange {
         /// The rate that the caller named.
@@ -43,13 +36,6 @@ pub enum ProfileError {
     MissingControl {
         /// The control that the profile needs.
         key: &'static str,
-    },
-    /// The module reads back a rate that differs from the requested rate.
-    RateNotApplied {
-        /// The rate that the request named.
-        wanted: i32,
-        /// The rate that the module reads back.
-        actual: i32,
     },
     /// The module reads back a value that differs from the applied value.
     SettingMismatch {
@@ -98,15 +84,19 @@ pub enum ProfileError {
 }
 
 impl ProfileError {
-    /// Returns this error with the operation that failed named.
+    /// Wraps a wrapper error with the operation that the profile code ran.
     ///
-    /// A library error carries no operation of its own, because the wrapper
-    /// reports one error type for every call. The caller names the step.
+    /// The wrapper names the failing call in `op`. That name stays in the
+    /// message, because a library failure can come from a call that the
+    /// profile code did not name.
     #[must_use]
-    pub fn with_operation(self, operation: &'static str) -> Self {
-        match self {
-            Self::Library { message, .. } => Self::Library { operation, message },
-            other => other,
+    pub fn library(error: &openmpt_ext::OpenmptError, operation: &'static str) -> Self {
+        Self::Library {
+            operation,
+            message: format!(
+                "{:?} reports {} (input {:?}, code {:?}, hint {:?}, log {:?})",
+                error.op, error.message, error.input, error.code, error.hint, error.log
+            ),
         }
     }
 }
@@ -126,10 +116,6 @@ impl fmt::Display for ProfileError {
                 out,
                 "the {profile} profile does not use an Amiga model, and the request gives {model}. Remove the model, or choose the amiga profile"
             ),
-            Self::ConflictingSettings { first, second } => write!(
-                out,
-                "the request names {first} and {second}, and they cannot both take effect. Remove one of them"
-            ),
             Self::RateOutOfRange {
                 rate,
                 lowest,
@@ -141,10 +127,6 @@ impl fmt::Display for ProfileError {
             Self::MissingControl { key } => write!(
                 out,
                 "this libopenmpt build has no {key:?} control, and the profile needs it. Rebuild against a libopenmpt that offers the control, or choose another profile"
-            ),
-            Self::RateNotApplied { wanted, actual } => write!(
-                out,
-                "the request names {wanted} Hz and the module reads back {actual} Hz, so the module did not take the rate. Choose a rate that the module accepts"
             ),
             Self::SettingMismatch {
                 setting,
