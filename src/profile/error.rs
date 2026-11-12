@@ -64,6 +64,11 @@ pub enum ProfileError {
     },
     /// The `amiga` profile does not apply to this module.
     AmigaDoesNotApply,
+    /// The `clean` profile cannot render this module as named.
+    CleanDoesNotApply {
+        /// The module type that the module reports.
+        module_type: String,
+    },
     /// The two plain renders differ, so the module reads random state.
     Nondeterministic {
         /// The sample index of the first difference.
@@ -151,6 +156,10 @@ impl fmt::Display for ProfileError {
             Self::AmigaDoesNotApply => write!(
                 out,
                 "the amiga profile does not apply to this module. The emulated render matches the plain render, so the module does not use the Amiga resampler. Choose the compatible or clean profile"
+            ),
+            Self::CleanDoesNotApply { module_type } => write!(
+                out,
+                "the clean profile cannot render this module as named. The module type is {module_type:?}, and a drum in that format can keep the nearest resampling mode, so the render would not use windowed-sinc. Choose the compatible or amiga profile"
             ),
             Self::Nondeterministic { sample } => write!(
                 out,

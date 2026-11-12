@@ -6,6 +6,7 @@
 
 pub mod amiga;
 pub mod apply;
+pub mod clean;
 pub mod config;
 pub mod error;
 pub mod kind;
@@ -18,6 +19,7 @@ pub use amiga::AmigaVerdict;
 pub use amiga::require_amiga_applies;
 pub use amiga::require_deterministic;
 pub use amiga::verify_amiga_applies;
+pub use clean::require_clean_applies;
 pub use config::ProfileConfig;
 pub use error::ProfileError;
 pub use kind::Profile;

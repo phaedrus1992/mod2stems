@@ -27,6 +27,13 @@ Decision: the design keeps the rule that an isolated render of a randomized modu
 Two unmuted renders detect the condition.
 The export still writes the stems and reports their sum as not comparable.
 
+The vendors carry no module that reads the generator, so a fixture now proves the condition.
+`tests/support/it.rs` builds an IT module with one instrument, a volume swing of 64, and four note triggers.
+The swing reads `mpt::random<int8>(AccessPRNG())` on every processed tick of the note.
+Two instances of the fixture render differently, and `require_deterministic` reports the first differing sample.
+`tests/profile_apply.rs` asserts both that report and the `Nondeterministic` error from the full Amiga check.
+The builder writes the bytes in the test process, because the vendor tree is a git submodule and a file there would not survive an update.
+
 ## 2. Do playback decisions read sample values?
 
 Question: can sample silencing keep playback state exactly?
@@ -165,7 +172,22 @@ The verdict then compares sample bits, so a NaN pair counts as identical and a s
 A second gap applies to the `clean` profile.
 A per-instrument resampling setting wins over the global interpolation mode (`Sndmix.cpp:2565-2580`), and the MT2 drum loader sets the nearest mode on its drums (`Load_mt2.cpp:1062,1107`).
 So `clean` cannot deliver windowed-sinc on those instruments.
-The profile still sets the global mode, and the export records the profile that the caller asked for.
+
+Decision: `clean` refuses a module that it cannot render as named.
+The C API exposes no per-instrument resampling read: `libopenmpt.h` gives only `openmpt_module_get_num_instruments` and `openmpt_module_get_instrument_name`.
+The profile therefore cannot name the affected instruments, so the alternative behavior is not available.
+`require_clean_applies` fails with `ProfileError::CleanDoesNotApply` when the `type` metadata key names the MT2 format.
+The key is the only fact that the API exposes about the per-instrument decision, and `libopenmpt_impl.cpp:1247` returns the module type through it.
+Every other module type passes.
+
+The check does not cover every way to reach a per-instrument mode, and the export states the limit rather than hiding it.
+`InstrumentExtensions.cpp:544` also sets the field from the extended instrument property `R...`, and an IT or XM file saved by OpenMPT can carry that block.
+A module of that kind still fails the profile's promise, and the type key does not reveal it.
+The limit is the same one that blocks the better behavior: no per-instrument resampling read exists in the C API.
+The MT2 case is the one that a stock module reaches without the extended property, so the check covers it.
+
+`Load_mt2.cpp` is the only loader that sets a non-default mode from the file structure itself, with no extended property.
+It sets the nearest mode on a drum whose sample carries the "no interpolation" flag.
 
 ## 7. Defaults to name in configuration
 
