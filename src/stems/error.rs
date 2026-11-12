@@ -48,6 +48,23 @@ pub enum StemError {
         /// The index in the trace where the two flows differ.
         index: usize,
     },
+    /// The reference render came from a different module.
+    ///
+    /// The flow check compares two traces, so a trace from another module or
+    /// another type would compare two unrelated songs and pass a stem that it
+    /// must reject (`docs/design.md` §4.1).
+    ReferenceMismatch {
+        /// The channel that the caller named.
+        channel: i32,
+        /// The number of channels in the module that the render reads.
+        channels: i32,
+        /// The number of channels in the module of the reference render.
+        reference_channels: i32,
+        /// The type token of the module that the render reads.
+        module_type: String,
+        /// The type token of the module of the reference render.
+        reference_type: String,
+    },
     /// The channel lies outside the module's channel range.
     ChannelOutOfRange {
         /// The channel that the caller named.
@@ -91,6 +108,16 @@ impl fmt::Display for StemError {
             Self::TraceDiverged { exported, index } => write!(
                 out,
                 "the render of channel {exported} visits a different song flow than the plain render, at position {index} of the trace. The silencing changed the song flow, so the stem is not a faithful split. Check the module for a speed, tempo, pattern jump, or pattern loop command on channel {exported}"
+            ),
+            Self::ReferenceMismatch {
+                channel,
+                channels,
+                reference_channels,
+                module_type,
+                reference_type,
+            } => write!(
+                out,
+                "the reference render does not come from the module of channel {channel}. The module reads type {module_type:?} with {channels} channels, and the reference reads type {reference_type:?} with {reference_channels} channels. Render the reference from the same module bytes and the same profile, then export the channel"
             ),
             Self::ChannelOutOfRange { channel, channels } => write!(
                 out,

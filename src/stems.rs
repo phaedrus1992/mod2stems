@@ -16,6 +16,7 @@ pub mod silencing;
 pub mod trace;
 
 pub use error::StemError;
+pub use isolation::Reference;
 pub use isolation::export_channel;
 pub use isolation::reference_render;
 pub use position::Position;

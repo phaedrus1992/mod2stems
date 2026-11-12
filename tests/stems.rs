@@ -200,7 +200,7 @@ fn channel_mute_drops_the_flow_of_a_s3m_module() -> Result<(), String> {
     }
     let render =
         read_guarded(&mut muted, config.rate(), 3600).map_err(|error| error.to_string())?;
-    match render.trace.first_divergence(&reference.trace) {
+    match render.trace.first_divergence(reference.trace()) {
         Some(_) => Ok(()),
         None => Err(
             "channel mute keeps the flow of the S3M fixture, and the fixture then does not test the ST3 rule"
@@ -215,15 +215,35 @@ fn zero_volume_keeps_the_flow_of_a_s3m_module() -> Result<(), String> {
     let mut plain = load_muted_flow()?;
     let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
     let mut isolated = load_muted_flow()?;
-    let export = export_channel(&mut isolated, &config, 0, &reference.trace)
-        .map_err(|error| error.to_string())?;
-    if export.trace != reference.trace {
+    let export =
+        export_channel(&mut isolated, &config, 0, &reference).map_err(|error| error.to_string())?;
+    if &export.trace != reference.trace() {
         return Err(format!(
             "the isolated render of the fixture diverges at {:?}",
-            export.trace.first_divergence(&reference.trace)
+            export.trace.first_divergence(reference.trace())
         ));
     }
     Ok(())
+}
+
+#[test]
+fn a_reference_from_another_module_fails() -> Result<(), String> {
+    // A trace from another module compares two unrelated songs, so the flow
+    // check must refuse it before it silences a channel.
+    let config = default_config()?;
+    let mut other = load("test.mod")?;
+    let reference = reference_render(&mut other, &config).map_err(|error| error.to_string())?;
+    let mut isolated = load_muted_flow()?;
+    match export_channel(&mut isolated, &config, 0, &reference) {
+        Err(StemError::ReferenceMismatch {
+            module_type,
+            reference_type,
+            ..
+        }) if module_type == "s3m" && reference_type == "mod" => Ok(()),
+        other => Err(format!(
+            "the export gives {other:?}, expected ReferenceMismatch"
+        )),
+    }
 }
 
 #[test]
@@ -245,11 +265,11 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     let config = default_config()?;
     let mut plain = load(name)?;
     let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
-    if reference.samples.is_empty() {
+    if reference.samples().is_empty() {
         return Err(format!("the reference render of {name} holds no samples"));
     }
     let channels = plain.num_channels();
-    let mut sum = vec![0.0_f32; reference.samples.len()];
+    let mut sum = vec![0.0_f32; reference.samples().len()];
     for channel in 0..channels {
         let mut isolated = load(name)?;
         // The loop bound comes from one instance and the render runs on
@@ -260,7 +280,7 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
                 isolated.num_channels()
             ));
         }
-        let exported = export_channel(&mut isolated, &config, channel, &reference.trace)
+        let exported = export_channel(&mut isolated, &config, channel, &reference)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {
             *part += stem;
@@ -271,14 +291,14 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     // tolerance would hide a stem that leaks another channel.
     match sum
         .iter()
-        .zip(reference.samples.iter())
+        .zip(reference.samples().iter())
         .position(|(part, whole)| part.to_bits() != whole.to_bits())
     {
         None => Ok(()),
         Some(index) => Err(format!(
             "the sum of the {channels} stems of {name} differs from the mix at sample {index}: {} against {}",
             sum.get(index).copied().unwrap_or_default(),
-            reference.samples.get(index).copied().unwrap_or_default()
+            reference.samples().get(index).copied().unwrap_or_default()
         )),
     }
 }
@@ -288,7 +308,8 @@ fn a_channel_outside_the_module_fails() -> Result<(), String> {
     let config = default_config()?;
     let mut module = load("test.mod")?;
     let channels = module.num_channels();
-    let reference = RowTrace::default();
+    let mut plain = load("test.mod")?;
+    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
     match export_channel(&mut module, &config, channels, &reference) {
         Err(StemError::ChannelOutOfRange {
             channel,

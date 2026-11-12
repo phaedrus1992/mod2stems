@@ -18,6 +18,33 @@ use crate::stems::silencing::Silencing;
 use crate::stems::silencing::silencing_for;
 use crate::stems::trace::RowTrace;
 
+/// The unmuted render that every stem of one module must match.
+///
+/// Only `reference_render` builds this type, so a caller cannot hand the flow
+/// check a trace from another module or another profile. The type records the
+/// channel count and the type token, and `export_channel` compares both with
+/// the module that it is about to render.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Reference {
+    render: GuardedRender,
+    channels: i32,
+    module_type: String,
+}
+
+impl Reference {
+    /// Returns the interleaved stereo samples of the unmuted render.
+    #[must_use]
+    pub fn samples(&self) -> &[f32] {
+        &self.render.samples
+    }
+
+    /// Returns the song flow that every stem must follow.
+    #[must_use]
+    pub fn trace(&self) -> &RowTrace {
+        &self.render.trace
+    }
+}
+
 /// Reads the whole song with no channel silenced.
 ///
 /// The trace that this call returns is the flow that every channel render must
@@ -30,13 +57,15 @@ use crate::stems::trace::RowTrace;
 pub fn reference_render(
     module: &mut Module,
     config: &ProfileConfig,
-) -> Result<GuardedRender, StemError> {
+) -> Result<Reference, StemError> {
     apply_profile(config, module)?;
-    Ok(read_guarded(
-        module,
-        config.rate(),
-        DEFAULT_MAX_RENDER_SECONDS,
-    )?)
+    let module_type = module_type(module)?;
+    let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
+    Ok(Reference {
+        render,
+        channels: module.num_channels(),
+        module_type,
+    })
 }
 
 /// Renders one channel, with every other channel silenced.
@@ -54,18 +83,28 @@ pub fn export_channel(
     module: &mut Module,
     config: &ProfileConfig,
     channel: i32,
-    reference: &RowTrace,
+    reference: &Reference,
 ) -> Result<GuardedRender, StemError> {
     let channels = module.num_channels();
     if !(0..channels).contains(&channel) {
         return Err(StemError::ChannelOutOfRange { channel, channels });
     }
     apply_profile(config, module)?;
-    let method = silencing_for(&module_type(module)?)?;
+    let module_type = module_type(module)?;
+    if module_type != reference.module_type || channels != reference.channels {
+        return Err(StemError::ReferenceMismatch {
+            channel,
+            channels,
+            reference_channels: reference.channels,
+            module_type,
+            reference_type: reference.module_type.clone(),
+        });
+    }
+    let method = silencing_for(&module_type)?;
     let silenced = silence(module, method, channel)?;
     let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
     verify_silence(module, method, channel, &silenced)?;
-    if let Some(index) = render.trace.first_divergence(reference) {
+    if let Some(index) = render.trace.first_divergence(reference.trace()) {
         return Err(StemError::TraceDiverged {
             exported: channel,
             index,

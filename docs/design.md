@@ -190,6 +190,8 @@ Detect a broken isolation directly, because the format type is only a proxy.
 Record the order and row sequence of each render through `get_current_order` and `get_current_row`.
 Compare that sequence with the sequence of the unmuted render.
 A difference means the silencing changed the song flow, so the export fails for that channel.
+The unmuted render returns a reference that carries the channel count and the type token of its own module.
+The export refuses a reference from another module with `ReferenceMismatch`, so the comparison never measures two unrelated songs.
 The sequence also feeds pair discovery (section 4.5).
 
 The stock API has no per-channel PCM tap before bus mixing. This requires a full
