@@ -154,6 +154,19 @@ The profile code rejects a conflicting interpolation setting before it starts a 
 Probe: `test.mod` (type `mod`) differs only after 0.21 s of render, because the opening rows are silent.
 A short prefix is therefore not a safe applicability test. Use the full comparison render.
 
+Randomized modules break the comparison unless the code handles them.
+`Sndfile.cpp:121` seeds each `CSoundFile` from `mpt::global_prng()`.
+`mptRandom.cpp` seeds that generator from `global_random_device()`, and no C API sets the seed.
+Two independent instances of one randomized module therefore render differently, and a plain comparison would report `Applies` every time.
+The comparison makes two plain renders first and requires them to match bit for bit.
+A mismatch is a `Nondeterministic` error, which names the first differing sample index.
+The verdict then compares sample bits, so a NaN pair counts as identical and a signed-zero pair counts as different.
+
+A second gap applies to the `clean` profile.
+A per-instrument resampling setting wins over the global interpolation mode (`Sndmix.cpp:2565-2580`), and the MT2 drum loader sets the nearest mode on its drums (`Load_mt2.cpp:1062,1107`).
+So `clean` cannot deliver windowed-sinc on those instruments.
+The profile still sets the global mode, and the export records the profile that the caller asked for.
+
 ## 7. Defaults to name in configuration
 
 Question: which values does the implementation own, after validation?

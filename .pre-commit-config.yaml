@@ -5,8 +5,12 @@
 repos:
   - repo: builtin
     hooks:
+      # `LICENSES/` holds verbatim upstream license text. A byte change there
+      # would misquote the license, so the rewrite hooks skip it.
       - id: trailing-whitespace
+        exclude: '^crates/openmpt-ext-sys/LICENSES/'
       - id: end-of-file-fixer
+        exclude: '^crates/openmpt-ext-sys/LICENSES/'
       - id: check-yaml
       - id: check-merge-conflict
 
@@ -16,6 +20,7 @@ repos:
       - id: check-added-large-files
       - id: check-toml
       - id: mixed-line-ending
+        exclude: '^crates/openmpt-ext-sys/LICENSES/'
 
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: 99470f5e12208ff0fb17ab81c3c494f7620a1d8d # v0.11.0

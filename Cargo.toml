@@ -32,7 +32,7 @@ similar_names = "allow"
 
 [package]
 name = "mod2stems"
-version = "0.0.0"
+version = "0.1.0"
 description = "Exports per-channel stems from tracker modules"
 edition.workspace = true
 license.workspace = true
@@ -41,6 +41,10 @@ publish.workspace = true
 
 [dependencies]
 openmpt-ext = { path = "crates/openmpt-ext", version = "0.0.0" }
+
+[dev-dependencies]
+# The same pin that `crates/openmpt-ext` uses, so one lock entry serves both.
+proptest = "=1.12.0"
 
 [lints]
 workspace = true

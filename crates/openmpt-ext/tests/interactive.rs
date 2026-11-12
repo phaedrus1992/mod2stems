@@ -15,11 +15,15 @@ fn load() -> Result<Module, String> {
 }
 
 /// Renders 4096 frames, which is more than the first row holds.
+///
+/// The call returns the frame count, so the buffer is trimmed to it. The tail
+/// of `buf` stays zero, and a compare that keeps it would hide a difference.
 fn render_all(module: &mut Module) -> Result<Vec<f32>, String> {
     let mut buf = vec![0.0_f32; 8192];
-    module
+    let frames = module
         .read_float(48_000, &mut buf)
         .map_err(|error| error.to_string())?;
+    buf.truncate(frames.saturating_mul(2));
     Ok(buf)
 }
 

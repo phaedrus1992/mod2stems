@@ -91,7 +91,14 @@ The module type does not predict the flag either: two loaders clear it after the
 The amiga profile therefore proves applicability by comparison: render the module with emulation on and off, and require the two renders to differ.
 An identical result means the profile does not apply, so the export fails explicitly.
 The comparison uses the unmuted trace render as its "off" side and adds one more unmuted render with emulation on.
+Each CSoundFile seeds its random generator from the process random device, and no C API sets that seed, so two instances of a randomized module render differently.
+The comparison therefore makes two plain renders first and requires them to match bit for bit. A mismatch fails the export as nondeterministic instead of reporting a false verdict.
+The verdict compares sample bits, not sample values, so two different bit patterns never count as identical.
 The profile code also rejects an explicit interpolation setting when Amiga emulation is enabled, because the library accepts both and lets Amiga win.
+
+Every applied setting is read back after the setter runs.
+A render parameter that reads back a different value is a `SettingMismatch` error, and an Amiga model that reads back different text is a `SettingTextMismatch` error.
+The library accepts a setting and ignores it in some combinations, so a setter that returns without an error does not show that the profile took effect.
 
 The implementation owns profile settings and their defaults. Record the resolved
 configuration in each export, including library-owned defaults where they cannot
@@ -198,6 +205,7 @@ The initial export plays the selected subsong without additional whole-song
 repetitions, while honoring its internal pattern flow.
 Set `play.at_end` to `stop` for every render.
 The library default, `fadeout`, adds a 100 ms fade after the end of the song, and `stop` ends the render at the song end with no fade.
+The render helper `read_pass` sets this control and holds a duration cap, so no caller can start a read without both.
 Do not use `continue`: it replays the module instead of draining the voices.
 The library stops the render at the song end even when a voice still rings, and no stock control drains that voice.
 The common timeline therefore ends at the song end, and the export must state this limit rather than promise hidden tail audio.
