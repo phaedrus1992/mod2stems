@@ -142,11 +142,19 @@ fn a_position_lands_once_per_transition() -> Result<(), String> {
     Ok(())
 }
 
+/// Builds a trace that visits the named rows of order 0.
+fn trace_of(rows: &[i32]) -> RowTrace {
+    let mut trace = RowTrace::default();
+    for row in rows {
+        trace.record(Position::new(0, *row));
+    }
+    trace
+}
+
 #[test]
 fn equal_traces_do_not_diverge() -> Result<(), String> {
-    let one = RowTrace::new(vec![Position::new(0, 0), Position::new(0, 1)]);
-    let other = RowTrace::new(vec![Position::new(0, 0), Position::new(0, 1)]);
-    match one.first_divergence(&other) {
+    let one = trace_of(&[0, 1]);
+    match one.first_divergence(&trace_of(&[0, 1])) {
         None => Ok(()),
         Some(index) => Err(format!("equal traces diverge at position {index}")),
     }
@@ -154,9 +162,7 @@ fn equal_traces_do_not_diverge() -> Result<(), String> {
 
 #[test]
 fn a_different_position_reports_its_index() -> Result<(), String> {
-    let one = RowTrace::new(vec![Position::new(0, 0), Position::new(0, 1)]);
-    let other = RowTrace::new(vec![Position::new(0, 0), Position::new(0, 2)]);
-    match one.first_divergence(&other) {
+    match trace_of(&[0, 1]).first_divergence(&trace_of(&[0, 2])) {
         Some(1) => Ok(()),
         other => Err(format!("the traces report {other:?}, expected Some(1)")),
     }
@@ -164,9 +170,7 @@ fn a_different_position_reports_its_index() -> Result<(), String> {
 
 #[test]
 fn a_shorter_trace_diverges_at_its_length() -> Result<(), String> {
-    let short = RowTrace::new(vec![Position::new(0, 0)]);
-    let long = RowTrace::new(vec![Position::new(0, 0), Position::new(0, 1)]);
-    match short.first_divergence(&long) {
+    match trace_of(&[0]).first_divergence(&trace_of(&[0, 1])) {
         Some(1) => Ok(()),
         other => Err(format!("the traces report {other:?}, expected Some(1)")),
     }
@@ -260,6 +264,14 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     let mut sum = vec![0.0_f32; reference.samples.len()];
     for channel in 0..channels {
         let mut isolated = load(name)?;
+        // The loop bound comes from one instance and the render runs on
+        // another, so the two counts must agree before a channel is exported.
+        if isolated.num_channels() != channels {
+            return Err(format!(
+                "{name} has {channels} channels in one load and {} in another",
+                isolated.num_channels()
+            ));
+        }
         let exported = export_channel(&mut isolated, &config, channel, &reference.trace)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {

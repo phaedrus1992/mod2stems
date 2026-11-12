@@ -18,12 +18,6 @@ pub struct RowTrace {
 }
 
 impl RowTrace {
-    /// Builds a trace from the positions that a render visited.
-    #[must_use]
-    pub fn new(positions: Vec<Position>) -> Self {
-        Self { positions }
-    }
-
     /// Returns the positions that the render visited.
     #[must_use]
     pub fn positions(&self) -> &[Position] {

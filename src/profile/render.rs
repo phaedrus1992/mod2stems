@@ -66,7 +66,7 @@ pub fn read_pass(
 ///
 /// Returns an error when the module lacks the `play.at_end` control, when a
 /// library call fails, or when the render reaches `max_seconds`.
-pub fn read_song(
+pub(crate) fn read_song(
     module: &mut Module,
     rate: i32,
     max_seconds: u64,

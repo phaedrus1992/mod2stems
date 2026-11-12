@@ -65,7 +65,12 @@ pub fn export_channel(
     let silenced = silence(module, method, channel)?;
     let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
     verify_silence(module, method, channel, &silenced)?;
-    require_same_flow(channel, &render.trace, reference)?;
+    if let Some(index) = render.trace.first_divergence(reference) {
+        return Err(StemError::TraceDiverged {
+            exported: channel,
+            index,
+        });
+    }
     Ok(render)
 }
 
@@ -146,16 +151,4 @@ fn verify_silence(
         }
     }
     Ok(())
-}
-
-/// Fails when the isolated render visits a different song flow.
-fn require_same_flow(
-    exported: i32,
-    trace: &RowTrace,
-    reference: &RowTrace,
-) -> Result<(), StemError> {
-    match trace.first_divergence(reference) {
-        Some(index) => Err(StemError::TraceDiverged { exported, index }),
-        None => Ok(()),
-    }
 }
