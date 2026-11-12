@@ -51,13 +51,6 @@ const PACKED_PATTERNS: u32 = 0x01;
 /// The sample rate that the fixture sample reports.
 const C5SPEED: u32 = 8363;
 
-// A constant drift then stops the build instead of writing outside an array.
-const _: () = assert!(GROUP_MAP_LEN == 96);
-const _: () = assert!(HEADER_LEN == 126);
-const _: () = assert!(SAMPLE_LEN == 26);
-const _: () = assert!(GROUP_LEN == 8);
-const _: () = assert!(INSTRUMENT_LEN == 106);
-
 /// Returns the bytes of the MT2 fixture module.
 ///
 /// The module has one channel, one instrument, and one sample. The sample

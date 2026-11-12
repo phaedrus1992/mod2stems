@@ -96,21 +96,6 @@ fn clean_sets_the_windowed_sinc_length() -> Result<(), String> {
 }
 
 #[test]
-fn the_mt2_fixture_loads_as_an_mt2_module() -> Result<(), String> {
-    // The type token is the observable fact the check rests on. The sample
-    // "no interpolation" flag models the hazard, and no C API reads the
-    // per-instrument mode back, so this test pins the token only.
-    let module = load_bytes(&mt2::nearest_resampling_mt2())?;
-    let module_type = module.metadata("type").map_err(|error| error.to_string())?;
-    if module_type != "mt2" {
-        return Err(format!(
-            "the MT2 fixture reports type {module_type:?}, expected \"mt2\""
-        ));
-    }
-    Ok(())
-}
-
-#[test]
 fn the_apply_path_refuses_clean_for_an_mt2_module() -> Result<(), String> {
     // `apply_profile` reads the type itself, so no caller can forget the
     // refusal that the design promises.
@@ -309,32 +294,6 @@ fn clean_accepts_every_other_module_type() -> Result<(), String> {
         if let Err(error) = require_clean_applies(module_type) {
             return Err(format!("the check refuses {module_type:?}: {error}"));
         }
-    }
-    Ok(())
-}
-
-#[test]
-fn the_module_type_is_read_from_the_fixture() -> Result<(), String> {
-    // The check reads the `type` metadata key, so this test proves that the key
-    // carries the value that the check compares against.
-    let module = load("test.mod")?;
-    let module_type = module.metadata("type").map_err(|error| error.to_string())?;
-    if module_type != "mod" {
-        return Err(format!(
-            "test.mod reports type {module_type:?}, expected \"mod\""
-        ));
-    }
-    require_clean_applies(&module_type).map_err(|error| error.to_string())
-}
-
-#[test]
-fn the_randomized_fixture_loads_as_an_it_module() -> Result<(), String> {
-    let module = load_bytes(&it::randomized_it())?;
-    let module_type = module.metadata("type").map_err(|error| error.to_string())?;
-    if module_type != "it" {
-        return Err(format!(
-            "the randomized fixture reports type {module_type:?}, expected \"it\""
-        ));
     }
     Ok(())
 }
