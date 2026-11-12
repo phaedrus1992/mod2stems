@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod profile;
+pub mod stems;
 
 pub use profile::AmigaModel;
 pub use profile::DEFAULT_MAX_RENDER_SECONDS;
@@ -15,3 +16,4 @@ pub use profile::ProfileError;
 pub use profile::ProfileRequest;
 pub use profile::ResolvedSettings;
 pub use profile::WINDOWED_SINC_FILTER_LENGTH;
+pub use stems::StemError;
