@@ -42,6 +42,14 @@ pub enum AmigaVerdict {
 ///
 /// Returns an error when the two renders differ in length, because a length
 /// difference means the two renders did not use the same settings.
+///
+/// # Preconditions
+///
+/// Both renders must come from a module that [`require_deterministic`] calls
+/// deterministic. Two renders of a randomized module differ for reasons that
+/// have nothing to do with the Amiga resampler, so the verdict would report
+/// `Applies` for every such module. Make both plain renders first, and call
+/// [`require_deterministic`] on the pair, before this function runs.
 pub fn verify_amiga_applies(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerdict, ProfileError> {
     if plain.len() != emulated.len() {
         return Err(ProfileError::AmigaComparisonLength {
@@ -85,14 +93,16 @@ fn same_samples(left: &[f32], right: &[f32]) -> bool {
 ///
 /// # Errors
 ///
-/// Returns [`ProfileError::Nondeterministic`] with the index of the first
-/// difference when the two renders differ. The caller reports that error, and
-/// it does not treat the module as Amiga or as deterministic.
+/// Returns [`ProfileError::NondeterministicLength`] with both lengths when the
+/// two renders differ in length, and [`ProfileError::Nondeterministic`] with
+/// the index of the first difference when their samples differ. The caller
+/// reports that error, and it does not treat the module as Amiga or as
+/// deterministic.
 pub fn require_deterministic(first: &[f32], second: &[f32]) -> Result<(), ProfileError> {
     if first.len() != second.len() {
-        return Err(ProfileError::AmigaComparisonLength {
-            plain: first.len(),
-            emulated: second.len(),
+        return Err(ProfileError::NondeterministicLength {
+            first: first.len(),
+            second: second.len(),
         });
     }
     match first

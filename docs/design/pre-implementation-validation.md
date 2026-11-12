@@ -180,11 +180,13 @@ The profile therefore cannot name the affected instruments, so the alternative b
 The key is the only fact that the API exposes about the per-instrument decision, and `libopenmpt_impl.cpp:1247` returns the module type through it.
 Every other module type passes.
 
-The check does not cover every way to reach a per-instrument mode, and the export states the limit rather than hiding it.
+The check does not cover every way to reach a per-instrument mode.
 `InstrumentExtensions.cpp:544` also sets the field from the extended instrument property `R...`, and an IT or XM file saved by OpenMPT can carry that block.
 A module of that kind still fails the profile's promise, and the type key does not reveal it.
 The limit is the same one that blocks the better behavior: no per-instrument resampling read exists in the C API.
 The MT2 case is the one that a stock module reaches without the extended property, so the check covers it.
+The `R...` gap has an open issue (#25), and `src/profile/clean.rs` names it in its module doc.
+That issue records the three options and the recommendation, so the limit is tracked work and not a comment.
 
 `Load_mt2.cpp` is the only loader that sets a non-default mode from the file structure itself, with no extended property.
 It sets the nearest mode on a drum whose sample carries the "no interpolation" flag.

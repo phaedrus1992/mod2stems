@@ -40,9 +40,7 @@ fn fixture_path(name: &str) -> PathBuf {
 
 /// Loads a vendored test module.
 fn load_named(name: &str) -> Result<Module, String> {
-    let path = fixture_path(name);
-    let bytes =
-        std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let bytes = fixture_bytes(name)?;
     Module::from_bytes(&bytes, &[]).map_err(|error| error.to_string())
 }
 
@@ -61,31 +59,30 @@ fn load_bytes(bytes: &[u8]) -> Result<Module, String> {
     Module::from_bytes(bytes, &[]).map_err(|error| error.to_string())
 }
 
+/// Loads a module from bytes, and keeps the library error type.
+fn load_typed(bytes: &[u8]) -> Result<Module, ProfileError> {
+    Module::from_bytes(bytes, &[])
+        .map_err(|error| ProfileError::library(&error, "the fixture module load"))
+}
+
 /// Makes two plain renders of one module.
 ///
 /// The Amiga check needs a deterministic baseline, so the caller compares these
-/// two renders before it trusts a verdict.
-fn two_plain_renders(bytes: &[u8]) -> Result<(Vec<f32>, Vec<f32>), String> {
-    let mut first = load_bytes(bytes)?;
-    let plain = read_pass(&mut first, 48_000, None, DEFAULT_MAX_RENDER_SECONDS)
-        .map_err(|error| error.to_string())?;
-    let mut second = load_bytes(bytes)?;
-    let again = read_pass(&mut second, 48_000, None, DEFAULT_MAX_RENDER_SECONDS)
-        .map_err(|error| error.to_string())?;
+/// two renders before it trusts a verdict. Each failure keeps its own type: a
+/// render that hits the duration limit stays `TooLong`, not a library error.
+fn two_plain_renders(bytes: &[u8]) -> Result<(Vec<f32>, Vec<f32>), ProfileError> {
+    let mut first = load_typed(bytes)?;
+    let plain = read_pass(&mut first, 48_000, None, DEFAULT_MAX_RENDER_SECONDS)?;
+    let mut second = load_typed(bytes)?;
+    let again = read_pass(&mut second, 48_000, None, DEFAULT_MAX_RENDER_SECONDS)?;
     Ok((plain, again))
 }
 
 /// Runs the whole Amiga check on one module, in the order the export uses.
 fn verdict_for_bytes(bytes: &[u8]) -> Result<AmigaVerdict, ProfileError> {
-    let (plain, again) = two_plain_renders(bytes).map_err(|error| ProfileError::Library {
-        operation: "the determinism baseline render",
-        message: error,
-    })?;
+    let (plain, again) = two_plain_renders(bytes)?;
     require_deterministic(&plain, &again)?;
-    let mut module = load_bytes(bytes).map_err(|error| ProfileError::Library {
-        operation: "the emulated render load",
-        message: error,
-    })?;
+    let mut module = load_typed(bytes)?;
     let emulated = read_pass(
         &mut module,
         48_000,
@@ -95,11 +92,15 @@ fn verdict_for_bytes(bytes: &[u8]) -> Result<AmigaVerdict, ProfileError> {
     verify_amiga_applies(&plain, &emulated)
 }
 
+/// Returns the bytes of one vendored fixture.
+fn fixture_bytes(name: &str) -> Result<Vec<u8>, String> {
+    let path = fixture_path(name);
+    std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
+}
+
 /// Returns the comparison verdict for one fixture.
 fn verdict_for(name: &str) -> Result<AmigaVerdict, String> {
-    let path = fixture_path(name);
-    let bytes =
-        std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let bytes = fixture_bytes(name)?;
     verdict_for_bytes(&bytes).map_err(|error| error.to_string())
 }
 
@@ -115,6 +116,36 @@ fn clean_sets_the_windowed_sinc_length() -> Result<(), String> {
         return Err(format!("the filter length is {length}, expected 8"));
     }
     Ok(())
+}
+
+#[test]
+fn the_mt2_fixture_loads_as_an_mt2_module() -> Result<(), String> {
+    // The type token is the observable fact the check rests on. The sample
+    // "no interpolation" flag models the hazard, and no C API reads the
+    // per-instrument mode back, so this test pins the token only.
+    let module = load_bytes(&support::mt2::nearest_resampling_mt2())?;
+    let module_type = module.metadata("type").map_err(|error| error.to_string())?;
+    if module_type != "mt2" {
+        return Err(format!(
+            "the MT2 fixture reports type {module_type:?}, expected \"mt2\""
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn the_apply_path_refuses_clean_for_an_mt2_module() -> Result<(), String> {
+    // `apply_profile` reads the type itself, so no caller can forget the
+    // refusal that the design promises.
+    let mut module = load_bytes(&support::mt2::nearest_resampling_mt2())?;
+    let config = resolve(ProfileRequest::clean())?;
+    match apply_profile(&config, &mut module) {
+        Err(ProfileError::CleanDoesNotApply) => Ok(()),
+        Err(error) => Err(format!(
+            "the apply path reports {error:?}, expected CleanDoesNotApply"
+        )),
+        Ok(()) => Err("the apply path accepts an MT2 module for the clean profile".to_owned()),
+    }
 }
 
 #[test]
@@ -266,12 +297,33 @@ fn clean_refuses_an_mt2_module() -> Result<(), String> {
     // API exposes no way to name the drum. `clean` therefore refuses the module
     // instead of rendering audio that is not windowed-sinc.
     match require_clean_applies("mt2") {
-        Err(ProfileError::CleanDoesNotApply { module_type }) if module_type == "mt2" => Ok(()),
+        Err(ProfileError::CleanDoesNotApply) => Ok(()),
         Err(error) => Err(format!(
-            "the check reports {error:?}, expected CleanDoesNotApply with \"mt2\""
+            "the check reports {error:?}, expected CleanDoesNotApply"
         )),
         Ok(()) => Err("the check accepts an MT2 module for the clean profile".to_owned()),
     }
+}
+
+#[test]
+fn clean_refuses_a_missing_module_type() -> Result<(), String> {
+    // `Module::metadata` returns an empty string for a missing key. An empty
+    // type cannot be shown to keep the profile promise, so the check refuses
+    // it instead of passing an unknown format.
+    for module_type in ["", "  "] {
+        match require_clean_applies(module_type) {
+            Err(ProfileError::MissingModuleType) => {}
+            Err(error) => {
+                return Err(format!(
+                    "the type {module_type:?} reports {error:?}, expected MissingModuleType"
+                ));
+            }
+            Ok(()) => {
+                return Err(format!("the check accepts the empty type {module_type:?}"));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[test]
@@ -316,7 +368,7 @@ fn a_randomized_module_reports_nondeterministic() -> Result<(), String> {
     // so two instances of the module render differently. The check must report
     // that condition instead of a verdict.
     let bytes = support::it::randomized_it();
-    let (first, second) = two_plain_renders(&bytes)?;
+    let (first, second) = two_plain_renders(&bytes).map_err(|error| error.to_string())?;
     match require_deterministic(&first, &second) {
         Err(ProfileError::Nondeterministic { .. }) => Ok(()),
         Err(error) => Err(format!(

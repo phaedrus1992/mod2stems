@@ -65,9 +65,16 @@ pub enum ProfileError {
     /// The `amiga` profile does not apply to this module.
     AmigaDoesNotApply,
     /// The `clean` profile cannot render this module as named.
-    CleanDoesNotApply {
-        /// The module type that the module reports.
-        module_type: String,
+    CleanDoesNotApply,
+    /// The module reports no type, so the `clean` check cannot decide.
+    MissingModuleType,
+    /// The two plain renders differ in length, so the module's length is not
+    /// reproducible.
+    NondeterministicLength {
+        /// The length of the first plain render, in samples.
+        first: usize,
+        /// The length of the second plain render, in samples.
+        second: usize,
     },
     /// The two plain renders differ, so the module reads random state.
     Nondeterministic {
@@ -157,9 +164,17 @@ impl fmt::Display for ProfileError {
                 out,
                 "the amiga profile does not apply to this module. The emulated render matches the plain render, so the module does not use the Amiga resampler. Choose the compatible or clean profile"
             ),
-            Self::CleanDoesNotApply { module_type } => write!(
+            Self::CleanDoesNotApply => write!(
                 out,
-                "the clean profile cannot render this module as named. The module type is {module_type:?}, and a drum in that format can keep the nearest resampling mode, so the render would not use windowed-sinc. Choose the compatible or amiga profile"
+                "the clean profile cannot render this module as named. The module is an MT2 file, and a drum in that format can keep the nearest resampling mode, so the render would not use windowed-sinc. Choose the compatible or amiga profile"
+            ),
+            Self::MissingModuleType => write!(
+                out,
+                "the module reports no type, so the clean profile cannot check that it renders as named. Choose the compatible or amiga profile, or read the type with the \"type\" metadata key"
+            ),
+            Self::NondeterministicLength { first, second } => write!(
+                out,
+                "the two plain renders of one module hold {first} and {second} samples, so the render length is not reproducible. The module reads random state, and the amiga check cannot tell the profile from that noise. Choose the compatible or clean profile"
             ),
             Self::Nondeterministic { sample } => write!(
                 out,

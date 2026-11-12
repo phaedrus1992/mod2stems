@@ -6,8 +6,10 @@
 use openmpt_ext::Module;
 
 use crate::profile::AmigaModel;
+use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
+use crate::profile::clean::require_clean_applies;
 
 /// The ctl that turns the stock Amiga resampler on.
 pub const AMIGA_CTL: &str = "render.resampler.emulate_amiga";
@@ -31,8 +33,18 @@ pub const AMIGA_CONTROLS: [&str; 2] = [AMIGA_CTL, AMIGA_TYPE_CTL];
 ///
 /// Returns an error when the module does not offer a control that the profile
 /// needs, when the library rejects a value, or when the module reads back a
-/// setting that the call did not set.
+/// setting that the call did not set. A `clean` config also fails when the
+/// module type names a format that `clean` cannot render as named, or when the
+/// module reports no type.
 pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), ProfileError> {
+    // The clean refusal runs before any setter, so a refused module is never
+    // partly written. It reads the type, so the apply path cannot forget it.
+    if config.profile() == Profile::Clean {
+        let module_type = module
+            .metadata("type")
+            .map_err(|error| ProfileError::library(&error, "the clean applicability read"))?;
+        require_clean_applies(&module_type)?;
+    }
     if let Some(model) = config.amiga_model() {
         enable_amiga(module, model, "the profile control set")?;
     }

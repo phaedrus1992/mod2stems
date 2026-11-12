@@ -36,8 +36,8 @@ const ROWS: usize = 8;
 const C5SPEED: u32 = 8363;
 /// Length of the sample data, in samples.
 const SAMPLE_DATA_LEN: usize = 256;
-/// Byte value of the note on row 0. The loader adds `NOTE_MIN` to a value below
-/// `0x80` (`Load_it.cpp:1105`).
+/// Byte value of the note on every note row. The loader adds `NOTE_MIN` to a
+/// value below `0x80` (`Load_it.cpp:1114`).
 const NOTE: u8 = 60;
 /// Volume swing that makes every triggered note read the random generator.
 ///
@@ -61,6 +61,15 @@ const INSTRUMENT_AT: usize = PAT_POINTERS_AT + PATTERNS * PARAPOINTER_LEN;
 const SAMPLE_AT: usize = INSTRUMENT_AT + INSTRUMENT_LEN;
 /// Offset of the pattern.
 const PATTERN_AT: usize = SAMPLE_AT + SAMPLE_LEN;
+
+// The instrument's keyboard map starts at byte 64 and holds one byte pair per
+// entry, and the sample pointer sits inside the sample header. A constant
+// drift then stops the build instead of writing outside the fixed arrays.
+const _: () = assert!(64 + KEYBOARD_ENTRIES * 2 <= INSTRUMENT_LEN);
+const _: () = assert!(SAMPLE_POINTER_FIELD + PARAPOINTER_LEN <= SAMPLE_LEN);
+const _: () = assert!(INSTRUMENT_AT + INSTRUMENT_LEN <= SAMPLE_AT);
+const _: () = assert!(SAMPLE_AT + SAMPLE_LEN <= PATTERN_AT);
+const _: () = assert!(KEYBOARD_ENTRIES <= u8::MAX as usize);
 
 /// Returns the bytes of the randomized fixture module.
 #[must_use]
@@ -186,7 +195,7 @@ fn sample_header(data_at: usize) -> [u8; SAMPLE_LEN] {
 /// Four rows carry a note and an instrument on channel 0, and each of them
 /// draws a new swing value. The rows sit two apart, so the note has time to
 /// play between triggers. A zero byte ends a row, and the first byte of a cell
-/// sets the channel with the mask-present flag (`Load_it.cpp:1077-1092`).
+/// sets the channel with the mask-present flag (`Load_it.cpp:1084-1086`).
 fn pattern() -> Vec<u8> {
     let mut data = Vec::with_capacity(ROWS * 4);
     for row in 0..ROWS {
