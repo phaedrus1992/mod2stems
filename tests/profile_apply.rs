@@ -81,7 +81,6 @@ fn two_plain_renders(bytes: &[u8]) -> Result<(Vec<f32>, Vec<f32>), ProfileError>
 /// Runs the whole Amiga check on one module, in the order the export uses.
 fn verdict_for_bytes(bytes: &[u8]) -> Result<AmigaVerdict, ProfileError> {
     let (plain, again) = two_plain_renders(bytes)?;
-    require_deterministic(&plain, &again)?;
     let mut module = load_typed(bytes)?;
     let emulated = read_pass(
         &mut module,
@@ -89,7 +88,7 @@ fn verdict_for_bytes(bytes: &[u8]) -> Result<AmigaVerdict, ProfileError> {
         Some(AmigaModel::A1200),
         DEFAULT_MAX_RENDER_SECONDS,
     )?;
-    verify_amiga_applies(&plain, &emulated)
+    verify_amiga_applies(&plain, &again, &emulated)
 }
 
 /// Returns the bytes of one vendored fixture.

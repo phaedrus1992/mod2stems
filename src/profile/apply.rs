@@ -46,7 +46,7 @@ pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), 
         require_clean_applies(&module_type)?;
     }
     if let Some(model) = config.amiga_model() {
-        enable_amiga(module, model, "the profile control set")?;
+        enable_amiga(module, model)?;
     }
     for (param, value) in config.settings().render_params() {
         module
@@ -74,28 +74,38 @@ pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), 
 ///
 /// The model goes in first. The library applies the model only while emulation
 /// is already on, so the reverse order would leave the default model in place.
-pub(crate) fn enable_amiga(
-    module: &mut Module,
-    model: AmigaModel,
-    operation: &'static str,
-) -> Result<(), ProfileError> {
+///
+/// The emulation switch is read back separately. A build can accept the switch
+/// and still leave emulation off, and the module type readback does not show
+/// that.
+pub(crate) fn enable_amiga(module: &mut Module, model: AmigaModel) -> Result<(), ProfileError> {
     if let Some(key) = missing_control(module.ctls(), &AMIGA_CONTROLS) {
         return Err(ProfileError::MissingControl { key });
     }
     module
         .ctl_set_text(AMIGA_TYPE_CTL, model.as_str())
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga model set"))?;
     module
         .ctl_set_bool(AMIGA_CTL, true)
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga switch set"))?;
     let found = module
         .ctl_get_text(AMIGA_TYPE_CTL)
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga model read"))?;
     if found != model.as_str() {
         return Err(ProfileError::SettingTextMismatch {
             setting: AMIGA_TYPE_CTL,
             wanted: model.as_str(),
             actual: found,
+        });
+    }
+    let enabled = module
+        .ctl_get_bool(AMIGA_CTL)
+        .map_err(|error| ProfileError::library(&error, "the Amiga switch read"))?;
+    if !enabled {
+        return Err(ProfileError::SettingMismatch {
+            setting: "the Amiga switch",
+            wanted: 1,
+            actual: 0,
         });
     }
     Ok(())

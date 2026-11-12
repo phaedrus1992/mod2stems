@@ -48,7 +48,7 @@ pub fn read_pass(
     max_seconds: u64,
 ) -> Result<Vec<f32>, ProfileError> {
     match model {
-        Some(model) => enable_amiga(module, model, "the Amiga render control set")?,
+        Some(model) => enable_amiga(module, model)?,
         None => module
             .ctl_set_bool(crate::profile::apply::AMIGA_CTL, false)
             .map_err(|error| ProfileError::library(&error, "the plain render control set"))?,
