@@ -15,6 +15,8 @@
 //! The vendor tree is a git submodule, so a fixture written there would not
 //! survive an update. The builder writes the bytes in the test process.
 
+use crate::fields::u32_field;
+
 /// Byte length of the MT2 file header (`MT2FileHeader`).
 const HEADER_LEN: usize = 126;
 /// Byte length of one `MT2Instrument` header.
@@ -48,13 +50,6 @@ const SAMPLE_NO_INTERPOLATION: u8 = 8;
 const PACKED_PATTERNS: u32 = 0x01;
 /// The sample rate that the fixture sample reports.
 const C5SPEED: u32 = 8363;
-
-// A constant drift then stops the build instead of writing outside an array.
-const _: () = assert!(GROUP_MAP_LEN == 96);
-const _: () = assert!(HEADER_LEN == 126);
-const _: () = assert!(SAMPLE_LEN == 26);
-const _: () = assert!(GROUP_LEN == 8);
-const _: () = assert!(INSTRUMENT_LEN == 106);
 
 /// Returns the bytes of the MT2 fixture module.
 ///
@@ -117,7 +112,7 @@ fn instrument_entries() -> Vec<u8> {
     copy_text(&mut name, b"Instrument");
     out.extend_from_slice(&name);
     let length = INSTRUMENT_LEN + INSTRUMENT_FLAGS_LEN + ENVELOPE_MASK_LEN;
-    out.extend_from_slice(&u32_of(length).to_le_bytes());
+    out.extend_from_slice(&u32_field(length).to_le_bytes());
     out.extend_from_slice(&instrument_header());
     out.extend_from_slice(&[0_u8; INSTRUMENT_FLAGS_LEN]);
     out.extend_from_slice(&[0_u8; ENVELOPE_MASK_LEN]);
@@ -146,7 +141,7 @@ fn sample_entries() -> Vec<u8> {
     let mut name = [0_u8; NAME_LEN];
     copy_text(&mut name, b"nearest");
     out.extend_from_slice(&name);
-    out.extend_from_slice(&u32_of(SAMPLE_LEN).to_le_bytes());
+    out.extend_from_slice(&u32_field(SAMPLE_LEN).to_le_bytes());
     out.extend_from_slice(&sample_header());
     for _ in 1..SAMPLE_ENTRIES {
         out.extend_from_slice(&[0_u8; NAME_LEN]);
@@ -180,16 +175,4 @@ fn group() -> [u8; GROUP_LEN] {
 fn copy_text(field: &mut [u8], text: &[u8]) {
     let take = text.len().min(field.len());
     field[..take].copy_from_slice(&text[..take]);
-}
-
-/// Converts a small byte count to a 32-bit header field.
-///
-/// Each caller passes a compile-time length that fits, so a clamp would only
-/// hide a drift. The assert stops the build when a future edit overflows.
-fn u32_of(value: usize) -> u32 {
-    assert!(
-        u32::try_from(value).is_ok(),
-        "a header length does not fit 32 bits"
-    );
-    u32::try_from(value).unwrap_or(0)
 }

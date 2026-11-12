@@ -63,14 +63,20 @@ proptest! {
         index in any::<usize>(),
     ) {
         let plain: Vec<f32> = bits.iter().copied().map(f32::from_bits).collect();
-        prop_assert_eq!(verify_amiga_applies(&plain, &plain), Ok(AmigaVerdict::DoesNotApply));
+        prop_assert_eq!(
+            verify_amiga_applies(&plain, &plain, &plain),
+            Ok(AmigaVerdict::DoesNotApply)
+        );
         if plain.is_empty() {
             return Ok(());
         }
         let at = index % plain.len();
         let mut changed = plain.clone();
         changed[at] = f32::from_bits(plain[at].to_bits() ^ 1);
-        prop_assert_eq!(verify_amiga_applies(&plain, &changed), Ok(AmigaVerdict::Applies));
+        prop_assert_eq!(
+            verify_amiga_applies(&plain, &plain, &changed),
+            Ok(AmigaVerdict::Applies)
+        );
     }
 
     /// A length difference is reported with both lengths.
@@ -85,11 +91,28 @@ proptest! {
         let plain = vec![0.0_f32; plain_len];
         let emulated = vec![0.0_f32; emulated_len];
         prop_assert_eq!(
-            verify_amiga_applies(&plain, &emulated),
+            verify_amiga_applies(&plain, &plain, &emulated),
             Err(ProfileError::AmigaComparisonLength {
                 plain: plain_len,
                 emulated: emulated_len,
             })
+        );
+    }
+
+    /// Two plain renders that differ stop the comparison before a verdict.
+    #[test]
+    fn a_randomized_pair_gives_no_verdict(
+        plain_len in 1_usize..64,
+        index in any::<usize>(),
+    ) {
+        let plain = vec![0.25_f32; plain_len];
+        let emulated = vec![0.5_f32; plain_len];
+        let mut again = plain.clone();
+        let at = index % plain.len();
+        again[at] = f32::from_bits(plain[at].to_bits() ^ 1);
+        prop_assert_eq!(
+            verify_amiga_applies(&plain, &again, &emulated),
+            Err(ProfileError::Nondeterministic { sample: at })
         );
     }
 

@@ -48,10 +48,32 @@ pub fn read_pass(
     max_seconds: u64,
 ) -> Result<Vec<f32>, ProfileError> {
     match model {
-        Some(model) => enable_amiga(module, model, "the Amiga render control set")?,
+        Some(model) => enable_amiga(module, model)?,
         None => module
             .ctl_set_bool(crate::profile::apply::AMIGA_CTL, false)
             .map_err(|error| ProfileError::library(&error, "the plain render control set"))?,
+    }
+    read_song(module, rate, max_seconds, &mut |_, _| {})
+}
+
+/// Reads one whole song, and reports each new position to `observe`.
+///
+/// The call sets `play.at_end` to `stop` and caps the duration, so a caller
+/// never starts a read without either. The isolation renders pass an observer
+/// that records the song flow. The profile renders pass one that does nothing.
+///
+/// # Errors
+///
+/// Returns an error when the module lacks the `play.at_end` control, when a
+/// library call fails, or when the render reaches `max_seconds`.
+pub(crate) fn read_song(
+    module: &mut Module,
+    rate: i32,
+    max_seconds: u64,
+    observe: &mut dyn FnMut(i32, i32),
+) -> Result<Vec<f32>, ProfileError> {
+    if !module.ctls().contains(AT_END_CTL) {
+        return Err(ProfileError::MissingControl { key: AT_END_CTL });
     }
     module
         .ctl_set_text(AT_END_CTL, AT_END_STOP)
@@ -67,6 +89,7 @@ pub fn read_pass(
                 limit_seconds: max_seconds,
             });
         }
+        observe(module.current_order(), module.current_row());
         let frames = module
             .read_float(rate, &mut buf)
             .map_err(|error| ProfileError::library(&error, "the profile render"))?;
