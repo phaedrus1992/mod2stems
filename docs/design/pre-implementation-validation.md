@@ -188,6 +188,14 @@ The MT2 case is the one that a stock module reaches without the extended propert
 The `R...` gap has an open issue (#25), and `src/profile/clean.rs` names it in its module doc.
 That issue records the three options and the recommendation, so the limit is tracked work and not a comment.
 
+A render comparison cannot close the `R...` gap, the way it closes the Amiga gap.
+Probe: render each vendored fixture at interpolation filter length 8 and at length 1, and compare the samples.
+`test.mod` differs at sample 23040 and `test.s3m` differs at sample 2.
+`test.xm` and `test.mptm` are bit-identical, and both render silence, so the comparison has no signal to read.
+A module that carries `R...` is an IT, XM, or MPTM file, and the two fixtures of those types give no difference.
+The comparison would therefore report "no per-instrument mode" for a module that has one.
+The check stays a type-token refusal, and the `R...` case stays open until upstream exposes a per-instrument read.
+
 `Load_mt2.cpp` is the only loader that sets a non-default mode from the file structure itself, with no extended property.
 It sets the nearest mode on a drum whose sample carries the "no interpolation" flag.
 

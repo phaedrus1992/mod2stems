@@ -330,3 +330,61 @@ fn the_amiga_check_reports_the_random_render_as_an_error() -> Result<(), String>
         )),
     }
 }
+
+/// Renders one fixture with the named global interpolation filter length.
+fn render_at_filter_length(name: &str, filter: i32) -> Result<Vec<f32>, String> {
+    let bytes = fixture_bytes(name)?;
+    let mut module = load_typed(&bytes).map_err(|error| error.to_string())?;
+    module
+        .set_render_param(RenderParam::InterpolationFilterLength, filter)
+        .map_err(|error| error.to_string())?;
+    read_pass(&mut module, 48_000, None, DEFAULT_MAX_RENDER_SECONDS)
+        .map_err(|error| error.to_string())
+}
+
+#[test]
+fn the_global_filter_length_does_not_reach_the_xm_or_mptm_render() -> Result<(), String> {
+    // #25 records that a per-instrument `R...` mode wins over the global mode,
+    // and that no C API reads it. A render comparison is the obvious fallback,
+    // and this test pins why it does not work: the two formats that can carry
+    // `R...` render the same samples at both filter lengths, so a comparison
+    // has no signal to read. A library bump that changes this result makes the
+    // test fail, which is the moment to revisit #25.
+    for name in ["test.xm", "test.mptm"] {
+        let sinc = render_at_filter_length(name, 8)?;
+        let nearest = render_at_filter_length(name, 1)?;
+        if sinc.len() != nearest.len() {
+            return Err(format!(
+                "{name} renders {} samples at length 8 and {} at length 1",
+                sinc.len(),
+                nearest.len()
+            ));
+        }
+        if let Some(index) = sinc
+            .iter()
+            .zip(&nearest)
+            .position(|(a, b)| a.to_bits() != b.to_bits())
+        {
+            return Err(format!(
+                "{name} differs at sample {index}, so a render comparison can detect the global mode"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn the_global_filter_length_reaches_the_mod_render() -> Result<(), String> {
+    // The same comparison does have a signal on a MOD, so the test above is
+    // not passing because the probe is broken.
+    let sinc = render_at_filter_length("test.mod", 8)?;
+    let nearest = render_at_filter_length("test.mod", 1)?;
+    match sinc
+        .iter()
+        .zip(&nearest)
+        .position(|(a, b)| a.to_bits() != b.to_bits())
+    {
+        Some(_) => Ok(()),
+        None => Err("test.mod renders the same samples at both filter lengths".to_owned()),
+    }
+}

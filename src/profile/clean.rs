@@ -8,7 +8,11 @@
 //! The check reads the module type, so it covers the MT2 loader only. An
 //! extended instrument property `R...` sets the same field with no type
 //! change, and it stays undetected until #25 lands.
-//! Design: `docs/design/pre-implementation-validation.md` §6.
+//!
+//! A render comparison cannot close that gap. The global filter length changes
+//! the render of `test.mod` and `test.s3m`, and leaves `test.xm` and `test.mptm`
+//! bit-identical, so the comparison has no signal for the formats that carry
+//! `R...`. Design: `docs/design/pre-implementation-validation.md` §6.
 
 use crate::profile::ProfileError;
 
