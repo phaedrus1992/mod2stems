@@ -5,9 +5,6 @@
 //! `test.s3m` selects zero channel volume, and the vendored `test.mod` selects
 //! channel mute.
 
-use std::path::Path;
-use std::path::PathBuf;
-
 use mod2stems::ProfileConfig;
 use mod2stems::ProfileRequest;
 use mod2stems::StemError;
@@ -21,26 +18,17 @@ use mod2stems::stems::reference_render;
 use mod2stems::stems::silencing_for;
 use openmpt_ext::Module;
 
+#[path = "support/fields.rs"]
+mod fields;
 #[path = "support/s3m.rs"]
 mod s3m;
 
-/// Returns the path of a vendored test module.
-fn fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/openmpt-ext-sys/vendor/openmpt/test")
-        .join(name)
-}
-
-/// Loads a vendored test module.
-fn load(name: &str) -> Result<Module, String> {
-    let path = fixture_path(name);
-    let bytes = std::fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-    Module::from_bytes(&bytes, &[]).map_err(|error| error.to_string())
-}
+use fields::load;
+use fields::load_bytes;
 
 /// Loads the module that `tests/support/s3m.rs` builds.
 fn load_muted_flow() -> Result<Module, String> {
-    Module::from_bytes(&s3m::muted_flow_s3m(), &[]).map_err(|error| error.to_string())
+    load_bytes(&s3m::muted_flow_s3m())
 }
 
 /// Resolves the default profile.
@@ -179,11 +167,11 @@ fn a_shorter_trace_diverges_at_its_length() -> Result<(), String> {
 #[test]
 fn the_fixture_selects_the_s3m_rules() -> Result<(), String> {
     let module = load_muted_flow()?;
-    if module.num_channels() != s3m::channels() {
+    if module.num_channels() != s3m::CHANNELS {
         return Err(format!(
             "the fixture declares {} channels, expected {}",
             module.num_channels(),
-            s3m::channels()
+            s3m::CHANNELS
         ));
     }
     let module_type = module.metadata("type").map_err(|error| error.to_string())?;

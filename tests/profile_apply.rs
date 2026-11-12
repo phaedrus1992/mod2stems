@@ -7,8 +7,6 @@
 //! and never degrades silently.
 
 use std::collections::HashSet;
-use std::path::Path;
-use std::path::PathBuf;
 
 use mod2stems::AmigaModel;
 use mod2stems::DEFAULT_MAX_RENDER_SECONDS;
@@ -29,34 +27,20 @@ use mod2stems::profile::verify_amiga_applies;
 use openmpt_ext::Module;
 use openmpt_ext::RenderParam;
 
-mod support;
+#[path = "support/fields.rs"]
+mod fields;
+#[path = "support/it.rs"]
+mod it;
+#[path = "support/mt2.rs"]
+mod mt2;
 
-/// Returns the path of a vendored test module.
-fn fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/openmpt-ext-sys/vendor/openmpt/test")
-        .join(name)
-}
-
-/// Loads a vendored test module.
-fn load_named(name: &str) -> Result<Module, String> {
-    let bytes = fixture_bytes(name)?;
-    Module::from_bytes(&bytes, &[]).map_err(|error| error.to_string())
-}
-
-/// Loads the vendored `test.mod`.
-fn load() -> Result<Module, String> {
-    load_named("test.mod")
-}
+use fields::fixture_bytes;
+use fields::load;
+use fields::load_bytes;
 
 /// Resolves a request that must resolve.
 fn resolve(request: ProfileRequest) -> Result<ProfileConfig, String> {
     request.resolve().map_err(|error| error.to_string())
-}
-
-/// Loads a module from bytes.
-fn load_bytes(bytes: &[u8]) -> Result<Module, String> {
-    Module::from_bytes(bytes, &[]).map_err(|error| error.to_string())
 }
 
 /// Loads a module from bytes, and keeps the library error type.
@@ -91,12 +75,6 @@ fn verdict_for_bytes(bytes: &[u8]) -> Result<AmigaVerdict, ProfileError> {
     verify_amiga_applies(&plain, &again, &emulated)
 }
 
-/// Returns the bytes of one vendored fixture.
-fn fixture_bytes(name: &str) -> Result<Vec<u8>, String> {
-    let path = fixture_path(name);
-    std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
-}
-
 /// Returns the comparison verdict for one fixture.
 fn verdict_for(name: &str) -> Result<AmigaVerdict, String> {
     let bytes = fixture_bytes(name)?;
@@ -105,7 +83,7 @@ fn verdict_for(name: &str) -> Result<AmigaVerdict, String> {
 
 #[test]
 fn clean_sets_the_windowed_sinc_length() -> Result<(), String> {
-    let mut module = load()?;
+    let mut module = load("test.mod")?;
     let config = resolve(ProfileRequest::clean())?;
     apply_profile(&config, &mut module).map_err(|error| error.to_string())?;
     let length = module
@@ -122,7 +100,7 @@ fn the_mt2_fixture_loads_as_an_mt2_module() -> Result<(), String> {
     // The type token is the observable fact the check rests on. The sample
     // "no interpolation" flag models the hazard, and no C API reads the
     // per-instrument mode back, so this test pins the token only.
-    let module = load_bytes(&support::mt2::nearest_resampling_mt2())?;
+    let module = load_bytes(&mt2::nearest_resampling_mt2())?;
     let module_type = module.metadata("type").map_err(|error| error.to_string())?;
     if module_type != "mt2" {
         return Err(format!(
@@ -136,7 +114,7 @@ fn the_mt2_fixture_loads_as_an_mt2_module() -> Result<(), String> {
 fn the_apply_path_refuses_clean_for_an_mt2_module() -> Result<(), String> {
     // `apply_profile` reads the type itself, so no caller can forget the
     // refusal that the design promises.
-    let mut module = load_bytes(&support::mt2::nearest_resampling_mt2())?;
+    let mut module = load_bytes(&mt2::nearest_resampling_mt2())?;
     let config = resolve(ProfileRequest::clean())?;
     match apply_profile(&config, &mut module) {
         Err(ProfileError::CleanDoesNotApply) => Ok(()),
@@ -149,7 +127,7 @@ fn the_apply_path_refuses_clean_for_an_mt2_module() -> Result<(), String> {
 
 #[test]
 fn amiga_enables_emulation_with_the_named_model() -> Result<(), String> {
-    let mut module = load()?;
+    let mut module = load("test.mod")?;
     let config = resolve(ProfileRequest::amiga(Some(AmigaModel::A500)))?;
     apply_profile(&config, &mut module).map_err(|error| error.to_string())?;
     let enabled = module
@@ -175,7 +153,7 @@ fn the_model_is_set_before_emulation_turns_on() -> Result<(), String> {
     // test sets the model on a module whose emulation is off, as the apply call
     // does, and reads the model back after the switch. A wrong order would
     // leave the library default model in place.
-    let mut module = load()?;
+    let mut module = load("test.mod")?;
     module
         .ctl_set_text(AMIGA_TYPE_CTL, "unfiltered")
         .map_err(|error| error.to_string())?;
@@ -195,7 +173,7 @@ fn the_model_is_set_before_emulation_turns_on() -> Result<(), String> {
 
 #[test]
 fn compatible_leaves_amiga_emulation_off() -> Result<(), String> {
-    let mut module = load()?;
+    let mut module = load("test.mod")?;
     let config = resolve(ProfileRequest::default())?;
     apply_profile(&config, &mut module).map_err(|error| error.to_string())?;
     let enabled = module
@@ -217,7 +195,7 @@ fn every_profile_resolves_for_the_module() -> Result<(), String> {
     for request in requests {
         let profile = request.profile();
         let config = resolve(request)?;
-        let mut module = load()?;
+        let mut module = load("test.mod")?;
         let missing = apply_profile(&config, &mut module)
             .err()
             .map(|error| error.to_string());
@@ -279,7 +257,7 @@ fn one_rate_reaches_every_render() -> Result<(), String> {
 
 #[test]
 fn a_render_limit_stops_a_long_read() -> Result<(), String> {
-    let mut module = load()?;
+    let mut module = load("test.mod")?;
     match read_pass(&mut module, 48_000, None, 0) {
         Ok(samples) => Err(format!(
             "the read returned {} samples at a zero second limit",
@@ -339,7 +317,7 @@ fn clean_accepts_every_other_module_type() -> Result<(), String> {
 fn the_module_type_is_read_from_the_fixture() -> Result<(), String> {
     // The check reads the `type` metadata key, so this test proves that the key
     // carries the value that the check compares against.
-    let module = load()?;
+    let module = load("test.mod")?;
     let module_type = module.metadata("type").map_err(|error| error.to_string())?;
     if module_type != "mod" {
         return Err(format!(
@@ -351,7 +329,7 @@ fn the_module_type_is_read_from_the_fixture() -> Result<(), String> {
 
 #[test]
 fn the_randomized_fixture_loads_as_an_it_module() -> Result<(), String> {
-    let module = load_bytes(&support::it::randomized_it())?;
+    let module = load_bytes(&it::randomized_it())?;
     let module_type = module.metadata("type").map_err(|error| error.to_string())?;
     if module_type != "it" {
         return Err(format!(
@@ -366,7 +344,7 @@ fn a_randomized_module_reports_nondeterministic() -> Result<(), String> {
     // The volume swing makes every triggered note read the process generator,
     // so two instances of the module render differently. The check must report
     // that condition instead of a verdict.
-    let bytes = support::it::randomized_it();
+    let bytes = it::randomized_it();
     let (first, second) = two_plain_renders(&bytes).map_err(|error| error.to_string())?;
     match require_deterministic(&first, &second) {
         Err(ProfileError::Nondeterministic { .. }) => Ok(()),
@@ -382,7 +360,7 @@ fn a_randomized_module_reports_nondeterministic() -> Result<(), String> {
 
 #[test]
 fn the_amiga_check_reports_the_random_render_as_an_error() -> Result<(), String> {
-    let bytes = support::it::randomized_it();
+    let bytes = it::randomized_it();
     match verdict_for_bytes(&bytes) {
         Err(ProfileError::Nondeterministic { .. }) => Ok(()),
         Err(error) => Err(format!(
