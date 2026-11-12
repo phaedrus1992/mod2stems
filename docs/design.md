@@ -176,9 +176,15 @@ Two silencing methods exist in the stock interactive interface:
 The ScreamTracker 3 effect gate reads the channel mute flag, not the channel volume, so zero channel volume does not trigger it.
 Three channel-volume writes in the effect engine overwrite the value that the silencing set: the channel volume command, the channel volume slide, and the volume down with duration command.
 
-Select the method from the module's playback type.
-Use zero channel volume for modules with ScreamTracker 3 rules, and channel mute for the other types.
-Fail explicitly for a type that has neither guarantee.
+Select the method from the module's type token.
+Use zero channel volume for the S3M type, and for the types that `GetBestSaveFormat` maps to it: 669, FAR, STM, MTM, and the loaders that start from the S3M type, which are 667, C67, CBA, ETX, and FMT.
+The FTM loader sets the rule on a MOD type, so FTM also uses zero channel volume.
+Use channel mute for every other type that the table lists.
+
+Six tokens fail the export with `UncertainRules`: `amf`, `dmf`, `dsm`, `gdm`, `mo3`, and `psm`.
+One token of each names more than one rule set, so the token cannot prove that a silenced channel keeps its effects.
+A token that is in neither list also fails.
+The table is closed, so a new loader cannot select the method that skips effects under ScreamTracker 3 rules by default.
 
 Detect a broken isolation directly, because the format type is only a proxy.
 Record the order and row sequence of each render through `get_current_order` and `get_current_row`.

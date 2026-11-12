@@ -10,6 +10,14 @@ use crate::profile::ProfileError;
 pub enum StemError {
     /// The module reports no type, so the silencing method cannot be chosen.
     MissingModuleType,
+    /// The type token names no rule set that the table can prove.
+    ///
+    /// One token can select more than one rule set, so the token cannot show
+    /// that a silenced channel keeps its effects (`docs/design.md` §4.1).
+    UncertainRules {
+        /// The type token that the module reports.
+        module_type: String,
+    },
     /// A silenced channel does not keep its volume at zero.
     ///
     /// An IT or MPTM channel-volume command, a channel-volume slide, or a song
@@ -63,6 +71,10 @@ impl fmt::Display for StemError {
             Self::MissingModuleType => write!(
                 out,
                 "the module reports no type, so the export cannot choose a silencing method. The export needs the \"type\" metadata key to decide, so check that libopenmpt reads the file as a tracker module"
+            ),
+            Self::UncertainRules { module_type } => write!(
+                out,
+                "the module type {module_type:?} does not select one silencing method. One token of that type can play with ScreamTracker 3 rules and an other token can play without them, so the export cannot prove that a silenced channel keeps its effects. Export a module of a type that the table lists, such as s3m, mod, it, or xm"
             ),
             Self::VolumeDrifted {
                 exported,

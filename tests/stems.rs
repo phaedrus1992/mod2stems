@@ -57,7 +57,11 @@ fn method(name: &str) -> Result<Silencing, String> {
 
 #[test]
 fn st3_rule_types_select_zero_volume() -> Result<(), String> {
-    for name in ["s3m", "stm", "stx", "667", "ftm"] {
+    // 669, FAR, and MTM reach the S3M rules through GetBestSaveFormat
+    // (Sndfile.cpp:1433). C67, CBA, and ETX start from the S3M type itself.
+    for name in [
+        "s3m", "stm", "stx", "667", "ftm", "669", "far", "mtm", "c67", "cba", "etx", "fmt",
+    ] {
         if method(name)? != Silencing::ZeroVolume {
             return Err(format!("{name} does not select zero channel volume"));
         }
@@ -67,9 +71,25 @@ fn st3_rule_types_select_zero_volume() -> Result<(), String> {
 
 #[test]
 fn other_types_select_channel_mute() -> Result<(), String> {
-    for name in ["mod", "it", "xm", "mptm"] {
+    for name in ["mod", "it", "xm", "mptm", "med", "ult", "okt", "rtm"] {
         if method(name)? != Silencing::ChannelMute {
             return Err(format!("{name} does not select channel mute"));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn a_type_with_two_rule_sets_fails() -> Result<(), String> {
+    // amf, dsm, dmf, gdm, mo3, and psm each name more than one rule set, so the
+    // token cannot decide the method. The check must fail, and it must not fall
+    // back to the method that skips effects under ST3 rules.
+    for name in ["amf", "dmf", "dsm", "gdm", "mo3", "psm"] {
+        match silencing_for(name) {
+            Err(StemError::UncertainRules { module_type }) if module_type == name => {}
+            other => {
+                return Err(format!("{name} gives {other:?}, expected UncertainRules"));
+            }
         }
     }
     Ok(())
