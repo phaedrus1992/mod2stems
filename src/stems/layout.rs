@@ -34,7 +34,9 @@ pub fn downmix(layout: ChannelLayout, samples: &[f32]) -> Result<Vec<f32>, StemE
             .as_chunks::<2>()
             .0
             .iter()
-            .map(|[left, right]| (left + right) / 2.0)
+            // The midpoint is the mean of the pair, and it stays in range when
+            // the sum of two large samples would not.
+            .map(|[left, right]| f32::midpoint(*left, *right))
             .collect()),
     }
 }
