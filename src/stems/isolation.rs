@@ -15,6 +15,7 @@ use crate::profile::apply::apply_profile;
 use crate::stems::StemError;
 use crate::stems::render::GuardedRender;
 use crate::stems::render::read_guarded;
+use crate::stems::render::read_guarded_with;
 use crate::stems::silencing::Silencing;
 use crate::stems::silencing::silencing_for;
 use crate::stems::trace::RowTrace;
@@ -133,8 +134,23 @@ pub fn export_channel(
     }
     let method = silencing_for(&module_type)?;
     let silenced = silence(module, method, channel)?;
-    let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
-    verify_silence(module, method, channel, &silenced)?;
+    // The check runs before each block, because a channel-volume command or a
+    // song restart raises the value mid-song and the end-of-song read shows
+    // only the final state.
+    let mut drift = None;
+    let render = read_guarded_with(
+        module,
+        config.rate(),
+        DEFAULT_MAX_RENDER_SECONDS,
+        &mut |module| {
+            if drift.is_none() {
+                drift = verify_silence(module, method, channel, &silenced).err();
+            }
+        },
+    )?;
+    if let Some(error) = drift {
+        return Err(error);
+    }
     if let Some(index) = render.trace.first_divergence(reference.trace()) {
         return Err(StemError::TraceDiverged {
             exported: channel,

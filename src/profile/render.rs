@@ -5,6 +5,7 @@
 //! module fails the export instead of allocating without a limit.
 
 use openmpt_ext::Module;
+use openmpt_ext::SAMPLE_RATE_RANGE;
 
 use crate::profile::AmigaModel;
 use crate::profile::ProfileError;
@@ -52,25 +53,37 @@ pub fn read_pass(
         Some(model) => enable_amiga(module, model)?,
         None => disable_amiga(module)?,
     }
-    read_song(module, rate, max_seconds, &mut |_, _| {})
+    read_song(module, rate, max_seconds, &mut |_| {})
 }
 
-/// Reads one whole song, and reports each new position to `observe`.
+/// Reads one whole song, and calls `observe` before each block.
 ///
 /// The call sets `play.at_end` to `stop` and caps the duration, so a caller
-/// never starts a read without either. The isolation renders pass an observer
-/// that records the song flow. The profile renders pass one that does nothing.
+/// never starts a read without either. The isolation renders use the observer
+/// to record the song flow and to check the silenced channels during the song.
+/// The profile renders pass an observer that does nothing.
 ///
 /// # Errors
 ///
-/// Returns an error when the module lacks the `play.at_end` control, when a
-/// library call fails, or when the render reaches `max_seconds`.
+/// Returns an error when the rate is outside [`SAMPLE_RATE_RANGE`], when the
+/// module lacks the `play.at_end` control, when a library call fails, or when
+/// the render reaches `max_seconds`.
 pub(crate) fn read_song(
     module: &mut Module,
     rate: i32,
     max_seconds: u64,
-    observe: &mut dyn FnMut(i32, i32),
+    observe: &mut dyn FnMut(&mut Module),
 ) -> Result<Vec<f32>, ProfileError> {
+    // The rate limit is computed before the first read, so a rate outside the
+    // renderer range must fail here. The read would report it later, and the
+    // caller would read a `TooLong` error for a bad rate instead.
+    if !SAMPLE_RATE_RANGE.contains(&rate) {
+        return Err(ProfileError::RateOutOfRange {
+            rate,
+            lowest: *SAMPLE_RATE_RANGE.start(),
+            highest: *SAMPLE_RATE_RANGE.end(),
+        });
+    }
     if !module.ctls().contains(AT_END_CTL) {
         return Err(ProfileError::MissingControl { key: AT_END_CTL });
     }
@@ -88,7 +101,7 @@ pub(crate) fn read_song(
                 limit_seconds: max_seconds,
             });
         }
-        observe(module.current_order(), module.current_row());
+        observe(module);
         let frames = module
             .read_float(rate, &mut buf)
             .map_err(|error| ProfileError::library(&error, "the profile render"))?;

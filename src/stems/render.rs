@@ -34,9 +34,30 @@ pub fn read_guarded(
     rate: i32,
     max_seconds: u64,
 ) -> Result<GuardedRender, ProfileError> {
+    read_guarded_with(module, rate, max_seconds, &mut |_| {})
+}
+
+/// Reads one whole song, records the song flow, and calls `observe` first.
+///
+/// `observe` runs before each block, so a caller can inspect the module during
+/// the song. The isolation render uses it to prove that a silenced channel
+/// stays silenced. A caller that fails a check stores the error and returns it
+/// after the read, because the read loop cannot fail on a check.
+///
+/// # Errors
+///
+/// Returns an error when the module lacks the `play.at_end` control, when a
+/// library call fails, or when the render reaches `max_seconds`.
+pub(crate) fn read_guarded_with(
+    module: &mut Module,
+    rate: i32,
+    max_seconds: u64,
+    observe: &mut dyn FnMut(&mut Module),
+) -> Result<GuardedRender, ProfileError> {
     let mut trace = RowTrace::default();
-    let samples = read_song(module, rate, max_seconds, &mut |order, row| {
-        trace.record(Position::new(order, row));
+    let samples = read_song(module, rate, max_seconds, &mut |module| {
+        trace.record(Position::new(module.current_order(), module.current_row()));
+        observe(module);
     })?;
     Ok(GuardedRender { samples, trace })
 }

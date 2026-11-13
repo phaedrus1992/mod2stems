@@ -328,6 +328,27 @@ fn a_channel_outside_the_module_fails() -> Result<(), String> {
 }
 
 #[test]
+fn a_silenced_channel_that_raises_its_volume_mid_song_fails() -> Result<(), String> {
+    // The fixture sets the silenced channel volume back to zero before the song
+    // ends, so a check that runs only after the render reads zero and passes.
+    // The export must catch the raise while the song runs.
+    let config = default_config()?;
+    let mut plain = load_bytes(&s3m::volume_swing_s3m())?;
+    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
+    let mut isolated = load_bytes(&s3m::volume_swing_s3m())?;
+    match export_channel(&mut isolated, &config, 0, &reference) {
+        Err(StemError::VolumeDrifted {
+            exported: 0,
+            silenced: 1,
+            ..
+        }) => Ok(()),
+        other => Err(format!(
+            "the export gives {other:?}, expected VolumeDrifted on channel 1"
+        )),
+    }
+}
+
+#[test]
 fn a_reference_from_another_profile_fails() -> Result<(), String> {
     // The flow check measures one performance. A reference rendered under
     // another profile is a different performance, so the export refuses it

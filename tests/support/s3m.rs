@@ -83,7 +83,21 @@ const _: () = assert!(SAMPLE_AT.is_multiple_of(PARAGRAPH));
 /// visits a different sequence.
 #[must_use]
 pub fn muted_flow_s3m() -> Vec<u8> {
-    let packed = pattern();
+    assemble(&pattern())
+}
+
+/// Returns the bytes of a module whose silenced channel raises its volume mid-song.
+///
+/// Channel 1 plays a note at volume 0, raises the volume at row 10, and sets it
+/// back to zero at row 30. The end of the song therefore reads zero again, so a
+/// check that runs only after the render cannot see the raise.
+#[must_use]
+pub fn volume_swing_s3m() -> Vec<u8> {
+    assemble(&volume_swing_pattern())
+}
+
+/// Writes the header, tables, sample, pattern, and data around one packed pattern.
+fn assemble(packed: &[u8]) -> Vec<u8> {
     let pattern_at = SAMPLE_AT + SAMPLE_HEADER_LEN;
     let data_at = pattern_at + packed.len();
     let mut file = vec![0_u8; SAMPLE_AT];
@@ -94,7 +108,7 @@ pub fn muted_flow_s3m() -> Vec<u8> {
     let pattern_pointer = paragraph(pattern_at);
     file[PAT_POINTERS_AT..PAT_POINTERS_AT + PARAPOINTER_LEN].copy_from_slice(&pattern_pointer);
     file.extend_from_slice(&sample_header(data_at));
-    file.extend_from_slice(&packed);
+    file.extend_from_slice(packed);
     file.extend_from_slice(&sample_data());
     file
 }
@@ -161,6 +175,33 @@ fn pattern() -> Vec<u8> {
     let mut cells = vec![0x20, NOTE, INSTRUMENT, END_OF_ROW];
     cells.extend_from_slice(&[0x80 | 1, b'C', BREAK_ROW, END_OF_ROW]);
     cells.extend(std::iter::repeat_n(END_OF_ROW, ROWS - 2));
+    let mut out = u16_field(cells.len()).to_le_bytes().to_vec();
+    out.extend_from_slice(&cells);
+    while !out.len().is_multiple_of(PARAGRAPH) {
+        out.push(0);
+    }
+    out
+}
+
+/// Writes a packed pattern whose channel 1 raises its volume at row 10 and
+/// sets it back to zero at row 30.
+///
+/// The row that raises the volume carries a channel-volume command (`M`), which
+/// writes the playback channel volume. The end of the song reads zero again, so
+/// only a check that runs during the song can see the raise.
+fn volume_swing_pattern() -> Vec<u8> {
+    let mut cells = Vec::new();
+    // Channel 0 plays the note, and channel 1 starts at volume 0.
+    cells.extend_from_slice(&[0x20, NOTE, INSTRUMENT]);
+    cells.extend_from_slice(&[0x61, NOTE, INSTRUMENT, 0]);
+    cells.push(END_OF_ROW);
+    cells.extend(std::iter::repeat_n(END_OF_ROW, 9));
+    // Row 10 raises the silenced channel volume to the maximum.
+    cells.extend_from_slice(&[0x81, b'M', 64, END_OF_ROW]);
+    cells.extend(std::iter::repeat_n(END_OF_ROW, 19));
+    // Row 30 sets it back to zero.
+    cells.extend_from_slice(&[0x81, b'M', 0, END_OF_ROW]);
+    cells.extend(std::iter::repeat_n(END_OF_ROW, ROWS - 31));
     let mut out = u16_field(cells.len()).to_le_bytes().to_vec();
     out.extend_from_slice(&cells);
     while !out.len().is_multiple_of(PARAGRAPH) {
