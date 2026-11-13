@@ -111,7 +111,7 @@ impl fmt::Display for StemError {
             ),
             Self::UncertainRules { module_type } => write!(
                 out,
-                "the module type {module_type:?} does not select one silencing method. One token of that type can play with ScreamTracker 3 rules and an other token can play without them, so the export cannot prove that a silenced channel keeps its effects. Export a module of a type that the table lists, such as s3m, mod, it, or xm"
+                "the module type {module_type:?} does not select one silencing method. One token of that type can play with ScreamTracker 3 rules and another token can play without them, so the export cannot prove that a silenced channel keeps its effects. Export a module of a type that the table lists, such as s3m, mod, it, or xm"
             ),
             Self::VolumeDrifted {
                 exported,
