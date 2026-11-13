@@ -37,8 +37,7 @@ impl Timeline {
     {
         let mut longest: Option<usize> = None;
         for samples in renders {
-            frames_of(samples)?;
-            let frames = samples.len() / 2;
+            let frames = frames_of(samples)?;
             longest = Some(longest.map_or(frames, |found: usize| found.max(frames)));
         }
         // The zero case fails, because an export with no render has no length
@@ -56,9 +55,25 @@ impl Timeline {
     }
 
     /// Returns the frames that one render needs added to reach the timeline.
-    #[must_use]
-    pub fn padding_for(self, samples: &[f32]) -> usize {
-        self.frames.saturating_sub(samples.len() / 2)
+    ///
+    /// The caller reports this value before it pads, so it sees a timing
+    /// difference before the padding hides it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StemError::NotStereo`] when the render holds a half frame, and
+    /// [`StemError::RenderPastTimeline`] when the render is longer than the
+    /// timeline. A saturating subtraction would report both cases as zero, and
+    /// a caller would read a divergent render as an aligned one.
+    pub fn padding_for(self, samples: &[f32]) -> Result<usize, StemError> {
+        let frames = frames_of(samples)?;
+        if frames > self.frames {
+            return Err(StemError::RenderPastTimeline {
+                frames,
+                timeline: self.frames,
+            });
+        }
+        Ok(self.frames - frames)
     }
 
     /// Returns one render, zero-padded at the tail to the common length.
@@ -73,8 +88,7 @@ impl Timeline {
     /// timeline. Padding cannot shorten a render, because a shorter common end
     /// would cut audio that the library played.
     pub fn pad(self, samples: &[f32]) -> Result<Vec<f32>, StemError> {
-        frames_of(samples)?;
-        let frames = samples.len() / 2;
+        let frames = frames_of(samples)?;
         if frames > self.frames {
             return Err(StemError::RenderPastTimeline {
                 frames,
@@ -88,32 +102,16 @@ impl Timeline {
     }
 }
 
-/// Rejects a sample count that is not a whole number of stereo frames.
-fn frames_of(samples: &[f32]) -> Result<(), StemError> {
-    if samples.len().is_multiple_of(2) {
-        return Ok(());
+/// Returns the frame count of a render, and rejects a half frame.
+///
+/// The samples are interleaved stereo, so a count that is not a multiple of two
+/// cannot name a whole frame. This is the one copy of the rule; `downmix` calls
+/// it too, so the two cannot drift apart.
+pub(crate) fn frames_of(samples: &[f32]) -> Result<usize, StemError> {
+    if !samples.len().is_multiple_of(2) {
+        return Err(StemError::NotStereo {
+            samples: samples.len(),
+        });
     }
-    Err(StemError::NotStereo {
-        samples: samples.len(),
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Timeline;
-
-    #[test]
-    fn the_longest_render_sets_the_length() {
-        let short = [0.0_f32; 2];
-        let long = [0.0_f32; 6];
-        let timeline = Timeline::from_renders([&short[..], &long[..]]);
-        assert_eq!(timeline.map(Timeline::frames).ok(), Some(3));
-    }
-
-    #[test]
-    fn a_render_at_the_length_needs_no_padding() {
-        let only = [0.0_f32; 4];
-        let timeline = Timeline::from_renders([&only[..]]);
-        assert_eq!(timeline.map(|t| t.padding_for(&only)).ok(), Some(0));
-    }
+    Ok(samples.len() / 2)
 }

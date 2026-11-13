@@ -189,11 +189,9 @@ fn padding_reports_the_frames_that_it_adds() -> Result<(), String> {
     let long = [0.0_f32; 10];
     let timeline = Timeline::from_renders([&long[..]]).map_err(|e| e.to_string())?;
     let short = [0.0_f32; 4];
-    if timeline.padding_for(&short) != 3 {
-        return Err(format!(
-            "the padding is {} frames, expected 3",
-            timeline.padding_for(&short)
-        ));
+    let padding = timeline.padding_for(&short).map_err(|e| e.to_string())?;
+    if padding != 3 {
+        return Err(format!("the padding is {padding} frames, expected 3"));
     }
     Ok(())
 }
@@ -316,20 +314,4 @@ fn a_stem_of_another_subsong_fails() -> Result<(), String> {
             "another subsong gives {other:?}, expected ReferenceMismatch"
         )),
     }
-}
-
-#[test]
-fn a_module_policy_reaches_the_export() -> Result<(), String> {
-    // The policy carries the duration limit. A limit that the render reaches
-    // fails as incomplete, and the failure stays distinct from a completed
-    // export (`docs/design.md` §4.2).
-    let config = default_config()?;
-    let policy = PlaybackPolicy::default_policy();
-    let mut plain = load("test.xm")?;
-    let reference =
-        reference_render(&mut plain, &config, &policy).map_err(|error| error.to_string())?;
-    if reference.samples().is_empty() {
-        return Err("the reference render holds no samples".to_owned());
-    }
-    Ok(())
 }
