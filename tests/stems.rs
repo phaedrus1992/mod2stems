@@ -214,8 +214,8 @@ fn channel_mute_drops_the_flow_of_a_s3m_module() -> Result<(), String> {
             .set_channel_mute(channel, true)
             .map_err(|error| error.to_string())?;
     }
-    let render =
-        read_guarded(&mut muted, config.rate(), 3600).map_err(|error| error.to_string())?;
+    let render = read_guarded(&mut muted, config.rate(), policy().max_seconds())
+        .map_err(|error| error.to_string())?;
     match render.trace.first_divergence(reference.trace()) {
         Some(_) => Ok(()),
         None => Err(
