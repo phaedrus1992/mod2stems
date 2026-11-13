@@ -21,7 +21,6 @@ use mod2stems::profile::apply::AMIGA_TYPE_CTL;
 use mod2stems::profile::apply::apply_profile;
 use mod2stems::profile::apply::missing_control;
 use mod2stems::profile::read_pass;
-use mod2stems::profile::require_clean_applies;
 use mod2stems::profile::require_deterministic;
 use mod2stems::profile::verify_amiga_applies;
 use openmpt_ext::Module;
@@ -274,61 +273,6 @@ fn a_render_limit_stops_a_long_read() -> Result<(), String> {
         Err(ProfileError::TooLong { limit_seconds: 0 }) => Ok(()),
         Err(error) => Err(format!("the error is {error:?}, expected TooLong")),
     }
-}
-
-#[test]
-fn clean_refuses_an_mt2_module() -> Result<(), String> {
-    // A drum in an MT2 module can keep the nearest resampling mode, and the C
-    // API exposes no way to name the drum. `clean` therefore refuses the module
-    // instead of rendering audio that is not windowed-sinc. The padded tokens
-    // prove one normalization feeds both checks.
-    for module_type in ["mt2", "MT2", " mt2 "] {
-        match require_clean_applies(module_type) {
-            Err(ProfileError::CleanDoesNotApply) => {}
-            Err(error) => {
-                return Err(format!(
-                    "the type {module_type:?} reports {error:?}, expected CleanDoesNotApply"
-                ));
-            }
-            Ok(()) => {
-                return Err(format!(
-                    "the check accepts {module_type:?} for the clean profile"
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-#[test]
-fn clean_refuses_a_missing_module_type() -> Result<(), String> {
-    // `Module::metadata` returns an empty string for a missing key. An empty
-    // type cannot be shown to keep the profile promise, so the check refuses
-    // it instead of passing an unknown format.
-    for module_type in ["", "  "] {
-        match require_clean_applies(module_type) {
-            Err(ProfileError::MissingModuleType) => {}
-            Err(error) => {
-                return Err(format!(
-                    "the type {module_type:?} reports {error:?}, expected MissingModuleType"
-                ));
-            }
-            Ok(()) => {
-                return Err(format!("the check accepts the empty type {module_type:?}"));
-            }
-        }
-    }
-    Ok(())
-}
-
-#[test]
-fn clean_accepts_every_other_module_type() -> Result<(), String> {
-    for module_type in ["mod", "s3m", "xm", "it", "mptm"] {
-        if let Err(error) = require_clean_applies(module_type) {
-            return Err(format!("the check refuses {module_type:?}: {error}"));
-        }
-    }
-    Ok(())
 }
 
 #[test]

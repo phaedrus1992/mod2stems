@@ -39,3 +39,47 @@ pub fn require_clean_applies(module_type: &str) -> Result<(), ProfileError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::require_clean_applies;
+    use crate::profile::ProfileError;
+
+    #[test]
+    fn the_mt2_type_is_refused_in_every_spelling() {
+        // A drum in an MT2 module can keep the nearest resampling mode, and the
+        // C API exposes no way to name the drum. The padded tokens prove that
+        // one normalization feeds both checks.
+        for module_type in ["mt2", "MT2", " mt2 "] {
+            assert_eq!(
+                require_clean_applies(module_type),
+                Err(ProfileError::CleanDoesNotApply),
+                "the type {module_type:?} passed the clean check"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_type_is_refused() {
+        // `Module::metadata` returns an empty string for a missing key. An
+        // empty type cannot keep the profile promise.
+        for module_type in ["", "  "] {
+            assert_eq!(
+                require_clean_applies(module_type),
+                Err(ProfileError::MissingModuleType),
+                "the type {module_type:?} passed the clean check"
+            );
+        }
+    }
+
+    #[test]
+    fn every_other_type_passes() {
+        for module_type in ["mod", "s3m", "xm", "it", "mptm"] {
+            assert_eq!(
+                require_clean_applies(module_type),
+                Ok(()),
+                "the type {module_type:?} failed the clean check"
+            );
+        }
+    }
+}

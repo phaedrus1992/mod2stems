@@ -174,3 +174,27 @@ fn frame_limit(rate: i32, max_seconds: u64) -> usize {
     let rate = usize::try_from(rate).unwrap_or(0);
     seconds.saturating_mul(rate)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::trace_block_frames;
+
+    #[test]
+    fn the_trace_window_follows_the_rate() {
+        // The window is a time, so the frame count comes from the rate.
+        for rate in [8_000, 44_100, 48_000, 192_000] {
+            assert_eq!(
+                trace_block_frames(rate),
+                usize::try_from(rate / 1_000).unwrap_or(1),
+                "the rate {rate} gives another window"
+            );
+        }
+    }
+
+    #[test]
+    fn a_trace_window_is_never_zero_frames() {
+        // A read of zero frames never ends, so the floor is one frame.
+        assert_eq!(trace_block_frames(0), 1);
+        assert_eq!(trace_block_frames(999), 1);
+    }
+}
