@@ -4,17 +4,8 @@
 //! mounts the whole `support` directory compiles every builder into itself.
 
 use std::path::Path;
-use std::path::PathBuf;
 
 use openmpt_ext::Module;
-
-/// Returns the path of a vendored test module.
-#[must_use]
-pub fn fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/openmpt-ext-sys/vendor/openmpt/test")
-        .join(name)
-}
 
 /// Returns the bytes of one vendored test module.
 ///
@@ -22,7 +13,9 @@ pub fn fixture_path(name: &str) -> PathBuf {
 ///
 /// Returns the file name and the reason when the file does not read.
 pub fn fixture_bytes(name: &str) -> Result<Vec<u8>, String> {
-    let path = fixture_path(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("crates/openmpt-ext-sys/vendor/openmpt/test")
+        .join(name);
     std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
 }
 

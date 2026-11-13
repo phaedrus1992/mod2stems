@@ -243,18 +243,24 @@ fn one_rate_reaches_every_render() -> Result<(), String> {
 #[test]
 fn a_rate_outside_the_renderer_range_fails_before_the_read() -> Result<(), String> {
     // The frame limit is computed from the rate. A bad rate must fail as a rate
-    // error, not as a limit that the rate mapped to.
-    let mut module = load("test.mod")?;
-    match read_pass(&mut module, 0, None, 3600) {
-        Err(ProfileError::RateOutOfRange {
-            rate: 0,
-            lowest: 8000,
-            highest: 192_000,
-        }) => Ok(()),
-        other => Err(format!(
-            "a zero rate gives {other:?}, expected RateOutOfRange"
-        )),
+    // error, not as a limit that the rate mapped to. The values sit one step
+    // outside each end, so the check covers the boundary and not just far away.
+    for rate in [0, 7_999, 192_001, 384_000] {
+        let mut module = load("test.mod")?;
+        match read_pass(&mut module, rate, None, 3600) {
+            Err(ProfileError::RateOutOfRange {
+                rate: found,
+                lowest: 8000,
+                highest: 192_000,
+            }) if found == rate => {}
+            other => {
+                return Err(format!(
+                    "the rate {rate} gives {other:?}, expected RateOutOfRange"
+                ));
+            }
+        }
     }
+    Ok(())
 }
 
 #[test]

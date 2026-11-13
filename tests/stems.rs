@@ -247,6 +247,32 @@ fn a_reference_from_another_module_fails() -> Result<(), String> {
 }
 
 #[test]
+fn a_reference_from_another_amiga_model_fails() -> Result<(), String> {
+    // The model is part of the settings, not of the profile name. Two
+    // references can both name the `amiga` profile and still render with
+    // different filters, so the export must refuse the pair.
+    let a500 = ProfileRequest::amiga(Some(mod2stems::AmigaModel::A500))
+        .resolve()
+        .map_err(|error| error.to_string())?;
+    let a1200 = ProfileRequest::amiga(Some(mod2stems::AmigaModel::A1200))
+        .resolve()
+        .map_err(|error| error.to_string())?;
+    let mut module = load("test.mod")?;
+    let reference = reference_render(&mut module, &a500).map_err(|error| error.to_string())?;
+    let mut isolated = load("test.mod")?;
+    match export_channel(&mut isolated, &a1200, 0, &reference) {
+        Err(StemError::ReferenceMismatch {
+            profile,
+            reference_profile,
+            ..
+        }) if profile.contains("a1200") && reference_profile.contains("a500") => Ok(()),
+        other => Err(format!(
+            "the export gives {other:?}, expected ReferenceMismatch"
+        )),
+    }
+}
+
+#[test]
 fn channel_mute_stems_add_up_to_the_mix() -> Result<(), String> {
     stems_add_up_to_the_mix("test.mod")
 }
@@ -279,15 +305,6 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
         }
         let exported = export_channel(&mut isolated, &config, channel, &reference)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
-        // The export refuses a stem of another length, so the sum below cannot
-        // drop samples at the end of a short stem.
-        if exported.samples.len() != sum.len() {
-            return Err(format!(
-                "{name} channel {channel} holds {} samples and the mix holds {}",
-                exported.samples.len(),
-                sum.len()
-            ));
-        }
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {
             *part += stem;
         }

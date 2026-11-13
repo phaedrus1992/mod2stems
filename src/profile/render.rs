@@ -120,6 +120,18 @@ pub(crate) fn read_song(
     module
         .ctl_set_text(AT_END_CTL, AT_END_STOP)
         .map_err(|error| ProfileError::library(&error, "the render end control set"))?;
+    // A build can accept the value and keep another one, and a render that
+    // fades at the song end would report a stem of another length.
+    let at_end = module
+        .ctl_get_text(AT_END_CTL)
+        .map_err(|error| ProfileError::library(&error, "the render end control read"))?;
+    if at_end != AT_END_STOP {
+        return Err(ProfileError::SettingTextMismatch {
+            setting: AT_END_CTL,
+            wanted: AT_END_STOP,
+            actual: at_end,
+        });
+    }
     let limit = frame_limit(rate, max_seconds);
     let mut out = Vec::new();
     let mut buf = vec![0.0_f32; block_frames.saturating_mul(2)];

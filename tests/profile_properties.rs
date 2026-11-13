@@ -116,13 +116,33 @@ proptest! {
         );
     }
 
-    /// A buffer matches itself in the determinism check.
+    /// A buffer that matches itself is deterministic.
     #[test]
     fn the_determinism_check_accepts_an_equal_pair(
         bits in proptest::collection::vec(any::<u32>(), 0..64),
     ) {
         let plain: Vec<f32> = bits.iter().copied().map(f32::from_bits).collect();
         prop_assert_eq!(require_deterministic(&plain, &plain), Ok(()));
+    }
+
+    /// Two buffers of another length are a length error, not a sample one.
+    #[test]
+    fn a_length_difference_is_a_length_error(
+        first in proptest::collection::vec(any::<u32>(), 0..64),
+        second in proptest::collection::vec(any::<u32>(), 0..64),
+    ) {
+        if first.len() == second.len() {
+            return Ok(());
+        }
+        let left: Vec<f32> = first.iter().copied().map(f32::from_bits).collect();
+        let right: Vec<f32> = second.iter().copied().map(f32::from_bits).collect();
+        prop_assert_eq!(
+            require_deterministic(&left, &right),
+            Err(ProfileError::NondeterministicLength {
+                first: left.len(),
+                second: right.len(),
+            })
+        );
     }
 
     /// A profile name parses exactly when it is one of the three names.

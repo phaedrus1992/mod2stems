@@ -7,6 +7,7 @@
 
 use openmpt_ext::Module;
 
+use crate::profile::AmigaModel;
 use crate::profile::DEFAULT_MAX_RENDER_SECONDS;
 use crate::profile::Profile;
 use crate::profile::ProfileConfig;
@@ -22,10 +23,11 @@ use crate::stems::trace::RowTrace;
 
 /// The unmuted render that every stem of one module must match.
 ///
-/// The type records the channel count, the type token, the profile, and the
-/// output rate. `export_channel` compares each of them with the module that it
-/// is about to render, so a reference from another module type, another profile,
-/// or another rate fails instead of measuring two unrelated songs.
+/// The type records the channel count, the type token, the profile, the Amiga
+/// model, and the output rate. `export_channel` compares each of them with the
+/// module that it is about to render, so a reference from another module type,
+/// another profile, another Amiga model, or another rate fails instead of
+/// measuring two unrelated songs.
 ///
 /// It does not record the module bytes. Two files of one type and one channel
 /// count pass the check, so the caller must render the reference from the same
@@ -36,6 +38,7 @@ pub struct Reference {
     channels: i32,
     module_type: String,
     profile: Profile,
+    amiga_model: Option<AmigaModel>,
     rate: i32,
 }
 
@@ -82,6 +85,7 @@ pub fn reference_render(
         channels: module.num_channels(),
         module_type,
         profile: config.profile(),
+        amiga_model: config.amiga_model(),
         rate: config.rate(),
     })
 }
@@ -112,6 +116,7 @@ pub fn export_channel(
     if module_type != reference.module_type
         || channels != reference.channels
         || config.profile() != reference.profile
+        || config.amiga_model() != reference.amiga_model
         || config.rate() != reference.rate
     {
         return Err(StemError::ReferenceMismatch {
@@ -120,15 +125,11 @@ pub fn export_channel(
             reference_channels: reference.channels,
             module_type,
             reference_type: reference.module_type.clone(),
-            profile: format!(
-                "the {} profile at {} Hz",
-                config.profile().as_str(),
-                config.rate()
-            ),
-            reference_profile: format!(
-                "the {} profile at {} Hz",
-                reference.profile.as_str(),
-                reference.rate
+            profile: describe_profile(config.profile(), config.amiga_model(), config.rate()),
+            reference_profile: describe_profile(
+                reference.profile,
+                reference.amiga_model,
+                reference.rate,
             ),
         });
     }
@@ -170,6 +171,22 @@ pub fn export_channel(
         });
     }
     Ok(render)
+}
+
+/// Returns the profile, the Amiga model, and the rate of one config.
+///
+/// The model is part of the settings, not of the profile name. Two references
+/// that name the `amiga` profile can still differ by model, so a mismatch
+/// message that names only the profile hides the reason.
+fn describe_profile(profile: Profile, model: Option<AmigaModel>, rate: i32) -> String {
+    match model {
+        Some(model) => format!(
+            "the {} profile with the {} model at {rate} Hz",
+            profile.as_str(),
+            model.as_str()
+        ),
+        None => format!("the {} profile at {rate} Hz", profile.as_str()),
+    }
 }
 
 /// Returns the type token that selects the silencing method.

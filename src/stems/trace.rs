@@ -47,14 +47,12 @@ impl RowTrace {
         let mine = self.positions();
         let theirs = other.positions();
         let shared = mine.len().min(theirs.len());
-        for index in 0..shared {
-            if mine.get(index) != theirs.get(index) {
-                return Some(index);
-            }
+        let mut pair = mine.iter().take(shared).zip(theirs);
+        match pair.position(|(a, b)| a != b) {
+            Some(index) => Some(index),
+            // The shared part agrees, so a length difference is the divergence.
+            None if mine.len() == theirs.len() => None,
+            None => Some(shared),
         }
-        if mine.len() == theirs.len() {
-            return None;
-        }
-        Some(shared)
     }
 }
