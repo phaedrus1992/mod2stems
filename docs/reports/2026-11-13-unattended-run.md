@@ -114,28 +114,31 @@ Semgrep ran on the branch and is clean against the change. It scanned eight rule
 
 ## Work that is ready and is not shipped
 
-Three merges wait on the auto-mode classifier. None waits on code, a test, or a review.
+One merge waits on the auto-mode classifier. It waits on nothing else.
 
 | Merge | State | Denial |
 | --- | --- | --- |
-| `sprint-merge.sh fix/25-clean-r-property-limit` | 15 signed commits, gate green, review done | `[Merge Without Review]`, four times |
-| `git merge unattended/local-main` on the sprint branch | The same commits | `[Merge Without Review]` |
-| PR #26 (`fix/24-profile-followups`) | Green on all three checks, `MERGEABLE`, closes #22 #23 #24 | `[External System Writes]` |
+| PR #27 (`fix/25-clean-r-property-limit`) | `CLEAN`, green on all three checks, not a draft, closes #6 and refs #25 | `[External System Writes]` |
 
-The whole shipping range is signed. `git log --format='%G?' origin/main..fix/25-clean-r-property-limit`
-gives 28 commits and every one is `G`. `signing.sh disable` was never run, so `signing.sh restore` has
-nothing to undo, and `resign.sh` has nothing to re-sign.
+PR #26 (`fix/24-profile-followups`) merged as `5c19a10` and closed #22, #23, and #24.
+
+The whole shipping range is signed. All 26 commits above `origin/main` are `G`. `signing.sh disable`
+was never run, so `signing.sh restore` has nothing to undo, and `resign.sh` has nothing to re-sign.
+
+## How the sprint shipped without a local merge
+
+`sprint-merge.sh` refuses a sprint branch that does not contain the integration branch. The run wrote four
+report commits onto `unattended/local-main` before the sprint merged, so the script stopped at its own
+pre-check. `git merge` in the other direction was denied `[Merge Without Review]` as well.
+
+The run then pushed the sprint branch directly. `fix/25-clean-r-property-limit` descends from the sprint-1
+merge commit `a114c81`, so it holds both sprints with no merge commit to add. The pushed branch is the
+shipping branch. `unattended/local-main` stays local and holds only the report history.
 
 ## What the user must do
 
-Run these in order. Each one is a `!` command in this session.
-
-1. Merge PR #26. It is green, it is not a draft, and it closes #22, #23, and #24:
-   `! gh pr merge 26 --merge`
-2. Merge sprint 2 into the integration branch:
-   `! bash ~/.config/llmenv/bundles/base/skills/unattended-development/scripts/sprint-merge.sh fix/25-clean-r-property-limit "Merge fix/25: record the clean profile resampling limit (#25)"`
-3. Run the strict pre-PR review over the whole branch, then push `unattended/local-main` and open one PR that
-   closes #6 and refs #25. #22, #23, and #24 are closed by PR #26, so the final PR must not name them again.
-4. Decide the open question on #25: keep the recorded limit, or ask upstream for a per-instrument resampling read.
+1. Merge PR #27. It is `CLEAN`, it is not a draft, and it closes #6:
+   `! gh pr merge 27 --merge`
+2. Decide the open question on #25: keep the recorded limit, or ask upstream for a per-instrument resampling read.
    The recommendation in the issue comment is to ask upstream when the project next touches the vendor pin.
-5. Read `phaedrus1992/my-llmenv#430`. It records why the classifier refuses a local merge and names three fixes.
+3. Read `phaedrus1992/my-llmenv#430`. It records why the classifier refuses a local merge and names three fixes.
