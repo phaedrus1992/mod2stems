@@ -131,7 +131,7 @@ pub(crate) fn read_song(
             actual: at_end,
         });
     }
-    let limit = frame_limit(rate, max_seconds);
+    let limit = frame_limit(rate, max_seconds)?;
     let mut out = Vec::new();
     let mut buf = vec![0.0_f32; block_frames.saturating_mul(2)];
     loop {
@@ -163,15 +163,24 @@ pub(crate) fn read_song(
     Ok(out)
 }
 
-/// Returns the sample count that `max_seconds` allows at `rate`.
+/// Returns the frame count that `max_seconds` allows at `rate`.
 ///
 /// `read_song` rejects a rate outside [`SAMPLE_RATE_RANGE`] before this call,
-/// so `rate` is positive and small. `saturating_mul` keeps the limit defined
-/// when `max_seconds` is huge.
-fn frame_limit(rate: i32, max_seconds: u64) -> usize {
-    let seconds = usize::try_from(max_seconds).unwrap_or(usize::MAX);
-    let rate = usize::try_from(rate).unwrap_or(0);
-    seconds.saturating_mul(rate)
+/// so `rate` is positive and small.
+///
+/// # Errors
+///
+/// Returns [`ProfileError::LimitOutOfRange`] when the count does not fit in a
+/// `usize`. A saturated count would never fire, so the guard would not stop a
+/// pathological module.
+fn frame_limit(rate: i32, max_seconds: u64) -> Result<usize, ProfileError> {
+    let too_long = || ProfileError::LimitOutOfRange {
+        limit_seconds: max_seconds,
+        rate,
+    };
+    let seconds = usize::try_from(max_seconds).map_err(|_| too_long())?;
+    let frames_per_second = usize::try_from(rate).map_err(|_| too_long())?;
+    seconds.checked_mul(frames_per_second).ok_or_else(too_long)
 }
 
 #[cfg(test)]

@@ -49,6 +49,10 @@ impl PlaybackPolicy {
     /// A render that reaches the limit fails as incomplete. That failure is
     /// separate from a render that reaches the song end, so the caller never
     /// reads a truncated song as a finished one.
+    ///
+    /// The render rejects a limit whose frame count does not fit in a `usize`,
+    /// so a value that large fails as [`StemError::Profile`] rather than
+    /// widening the guard past its designed bound.
     #[must_use]
     pub fn with_max_seconds(self, max_seconds: u64) -> Self {
         Self {

@@ -278,6 +278,23 @@ fn a_render_limit_stops_a_long_read() -> Result<(), String> {
 }
 
 #[test]
+fn a_limit_too_large_for_a_frame_count_fails() -> Result<(), String> {
+    // The cap is a sample count. A limit whose count does not fit in a usize
+    // would saturate to a count that never fires, so the guard must reject it
+    // instead of widening the allocation bound.
+    let mut module = load("test.mod")?;
+    match read_pass(&mut module, 48_000, None, u64::MAX) {
+        Err(ProfileError::LimitOutOfRange {
+            limit_seconds,
+            rate: 48_000,
+        }) if limit_seconds == u64::MAX => Ok(()),
+        other => Err(format!(
+            "the limit u64::MAX gives {other:?}, expected LimitOutOfRange"
+        )),
+    }
+}
+
+#[test]
 fn a_randomized_module_reports_nondeterministic() -> Result<(), String> {
     // The volume swing makes every triggered note read the process generator,
     // so two instances of the module render differently. The check must report

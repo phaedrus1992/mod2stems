@@ -88,6 +88,17 @@ pub enum ProfileError {
         /// The maximum duration, in seconds.
         limit_seconds: u64,
     },
+    /// The duration limit is too large for the frame count of the render.
+    ///
+    /// The cap is a sample count. A limit that does not fit in a `usize` would
+    /// saturate to a count that never fires, and the render would then allocate
+    /// until the process runs out of memory.
+    LimitOutOfRange {
+        /// The maximum duration that the caller set, in seconds.
+        limit_seconds: u64,
+        /// The output rate that gives the frame count.
+        rate: i32,
+    },
     /// The library rejected a control value, or read back a different value.
     Library {
         /// The operation that failed.
@@ -188,6 +199,13 @@ impl fmt::Display for ProfileError {
             Self::TooLong { limit_seconds } => write!(
                 out,
                 "the render reached the maximum duration of {limit_seconds} s, and the export is incomplete. Raise the maximum duration, or use a shorter module"
+            ),
+            Self::LimitOutOfRange {
+                limit_seconds,
+                rate,
+            } => write!(
+                out,
+                "the maximum duration of {limit_seconds} s at {rate} Hz gives a frame count that is too large. The render would not stop at this limit. Use a smaller maximum duration"
             ),
             Self::Library { operation, message } => {
                 write!(out, "{operation} failed. libopenmpt reports: {message}")
