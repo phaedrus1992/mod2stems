@@ -248,7 +248,7 @@ fn a_rate_outside_the_renderer_range_fails_before_the_read() -> Result<(), Strin
     // outside each end, so the check covers the boundary and not just far away.
     for rate in [0, 7_999, 192_001, 384_000] {
         let mut module = load("test.mod")?;
-        match read_pass(&mut module, rate, None, 3600) {
+        match read_pass(&mut module, rate, None, DEFAULT_MAX_RENDER_SECONDS) {
             Err(ProfileError::RateOutOfRange {
                 rate: found,
                 lowest: 8000,
