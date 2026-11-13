@@ -265,9 +265,6 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     let config = default_config()?;
     let mut plain = load(name)?;
     let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
-    if reference.samples().is_empty() {
-        return Err(format!("the reference render of {name} holds no samples"));
-    }
     let channels = plain.num_channels();
     let mut sum = vec![0.0_f32; reference.samples().len()];
     for channel in 0..channels {
@@ -282,6 +279,15 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
         }
         let exported = export_channel(&mut isolated, &config, channel, &reference)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
+        // The export refuses a stem of another length, so the sum below cannot
+        // drop samples at the end of a short stem.
+        if exported.samples.len() != sum.len() {
+            return Err(format!(
+                "{name} channel {channel} holds {} samples and the mix holds {}",
+                exported.samples.len(),
+                sum.len()
+            ));
+        }
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {
             *part += stem;
         }

@@ -69,6 +69,22 @@ pub enum StemError {
         /// The profile and rate that the reference uses.
         reference_profile: String,
     },
+    /// The reference render holds no samples.
+    EmptyReference {
+        /// The type token of the module.
+        module_type: String,
+        /// The number of channels in the module.
+        channels: i32,
+    },
+    /// The stem and the reference render differ in length.
+    StemLengthMismatch {
+        /// The channel that the caller named.
+        exported: i32,
+        /// The number of samples in the stem.
+        stem: usize,
+        /// The number of samples in the reference render.
+        reference: usize,
+    },
     /// The channel lies outside the module's channel range.
     ChannelOutOfRange {
         /// The channel that the caller named.
@@ -124,6 +140,21 @@ impl fmt::Display for StemError {
             } => write!(
                 out,
                 "the reference render does not match channel {channel}. The module reads type {module_type:?} with {channels} channels under {profile}, and the reference reads type {reference_type:?} with {reference_channels} channels under {reference_profile}. Render the reference from the same module bytes and the same profile, then export the channel"
+            ),
+            Self::EmptyReference {
+                module_type,
+                channels,
+            } => write!(
+                out,
+                "the module of type {module_type:?} with {channels} channels renders no samples, so every stem would be empty. Choose a subsong that holds orders, or check the module for a song that ends before its first row"
+            ),
+            Self::StemLengthMismatch {
+                exported,
+                stem,
+                reference,
+            } => write!(
+                out,
+                "the stem of channel {exported} holds {stem} samples and the reference render holds {reference}. The stem must span the same timeline as the reference. Check the module for a song end that depends on the silenced channel"
             ),
             Self::ChannelOutOfRange { channel, channels } => write!(
                 out,

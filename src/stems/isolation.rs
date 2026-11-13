@@ -68,6 +68,14 @@ pub fn reference_render(
     apply_profile(config, module)?;
     let module_type = module_type(module)?;
     let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
+    // Every stem copies this render's length, so an empty reference would make
+    // every stem succeed with no audio.
+    if render.samples.is_empty() {
+        return Err(StemError::EmptyReference {
+            module_type,
+            channels: module.num_channels(),
+        });
+    }
     Ok(Reference {
         render,
         channels: module.num_channels(),
@@ -131,6 +139,13 @@ pub fn export_channel(
         return Err(StemError::TraceDiverged {
             exported: channel,
             index,
+        });
+    }
+    if render.samples.len() != reference.samples().len() {
+        return Err(StemError::StemLengthMismatch {
+            exported: channel,
+            stem: render.samples.len(),
+            reference: reference.samples().len(),
         });
     }
     Ok(render)
