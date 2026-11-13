@@ -124,8 +124,9 @@ pub(crate) fn read_song(
 
 /// Returns the sample count that `max_seconds` allows at `rate`.
 ///
-/// `rate` is one of the rates that the renderer accepts, so the product is
-/// small. `saturating_mul` keeps the limit defined for any rate.
+/// `read_song` rejects a rate outside [`SAMPLE_RATE_RANGE`] before this call,
+/// so `rate` is positive and small. `saturating_mul` keeps the limit defined
+/// when `max_seconds` is huge.
 fn frame_limit(rate: i32, max_seconds: u64) -> usize {
     let seconds = usize::try_from(max_seconds).unwrap_or(usize::MAX);
     let rate = usize::try_from(rate).unwrap_or(0);
