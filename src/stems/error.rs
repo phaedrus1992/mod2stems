@@ -90,6 +90,19 @@ pub enum StemError {
         /// The number of channels in the module.
         channels: i32,
     },
+    /// The module did not keep a value that the playback policy set.
+    ///
+    /// The policy reads each value back, because a build can accept a setter
+    /// and keep another value. A mismatch means the render would not play what
+    /// the policy names (`docs/design.md` §4.2).
+    PolicyMismatch {
+        /// The policy setting that did not take effect.
+        setting: &'static str,
+        /// The value that the policy set.
+        wanted: i32,
+        /// The value that the module reads back.
+        actual: i32,
+    },
     /// No completed render fixes the common timeline.
     ///
     /// An export with no render has no length to align to, so every stem of it
@@ -176,6 +189,14 @@ impl fmt::Display for StemError {
             Self::ChannelOutOfRange { channel, channels } => write!(
                 out,
                 "channel {channel} is not a channel of this module, which has {channels}. Choose a channel in 0..{channels}"
+            ),
+            Self::PolicyMismatch {
+                setting,
+                wanted,
+                actual,
+            } => write!(
+                out,
+                "the playback policy sets {setting} to {wanted} and the module reads back {actual}. The policy did not take effect on this module. Use a libopenmpt build that offers the value, and check that the module holds the subsong"
             ),
             Self::EmptyTimeline => write!(
                 out,

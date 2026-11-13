@@ -82,26 +82,24 @@ impl PlaybackPolicy {
     /// than the one that the policy set.
     pub fn apply(self, module: &mut Module) -> Result<(), StemError> {
         map_library(module.select_subsong(self.subsong), "the subsong selection")?;
-        let selected = module.selected_subsong();
+        let selected = map_library(module.selected_subsong(), "the subsong read")?;
         if selected != self.subsong {
-            return Err(ProfileError::SettingMismatch {
+            return Err(StemError::PolicyMismatch {
                 setting: "subsong",
                 wanted: self.subsong,
                 actual: selected,
-            }
-            .into());
+            });
         }
         // `docs/design.md` §4.2 plays one pass of the order list. The library
         // reads a negative count as "repeat forever", which never ends.
         map_library(module.set_repeat_count(0), "the repeat count set")?;
-        let count = module.repeat_count();
+        let count = map_library(module.repeat_count(), "the repeat count read")?;
         if count != 0 {
-            return Err(ProfileError::SettingMismatch {
+            return Err(StemError::PolicyMismatch {
                 setting: "repeat count",
                 wanted: 0,
                 actual: count,
-            }
-            .into());
+            });
         }
         Ok(())
     }

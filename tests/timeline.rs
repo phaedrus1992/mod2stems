@@ -70,17 +70,15 @@ fn a_policy_selects_the_subsong_and_plays_one_pass() -> Result<(), String> {
         .with_subsong(1)
         .apply(&mut module)
         .map_err(|error| error.to_string())?;
-    if module.selected_subsong() != 1 {
-        return Err(format!(
-            "the selected subsong is {}, expected 1",
-            module.selected_subsong()
-        ));
+    let selected = module
+        .selected_subsong()
+        .map_err(|error| error.to_string())?;
+    if selected != 1 {
+        return Err(format!("the selected subsong is {selected}, expected 1"));
     }
-    if module.repeat_count() != 0 {
-        return Err(format!(
-            "the repeat count is {}, expected 0",
-            module.repeat_count()
-        ));
+    let count = module.repeat_count().map_err(|error| error.to_string())?;
+    if count != 0 {
+        return Err(format!("the repeat count is {count}, expected 0"));
     }
     Ok(())
 }
@@ -96,11 +94,9 @@ fn a_policy_resets_a_repeat_count_that_the_module_carried() -> Result<(), String
     PlaybackPolicy::default_policy()
         .apply(&mut module)
         .map_err(|error| error.to_string())?;
-    if module.repeat_count() != 0 {
-        return Err(format!(
-            "the repeat count is {}, expected 0",
-            module.repeat_count()
-        ));
+    let count = module.repeat_count().map_err(|error| error.to_string())?;
+    if count != 0 {
+        return Err(format!("the repeat count is {count}, expected 0"));
     }
     Ok(())
 }
