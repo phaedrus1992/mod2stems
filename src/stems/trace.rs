@@ -10,8 +10,11 @@ use crate::stems::position::Position;
 
 /// The positions that one render visited, in order.
 ///
-/// A position lands in the trace when the render enters it, so two renders of
-/// the same song give the same trace however many frames each read covers.
+/// A position lands in the trace when a read returns between two positions.
+/// The library reports its position only between reads, so a row that starts
+/// and ends inside one read never lands in the trace. Every render in this
+/// crate reads the same block size, so the sampling is the same for all of
+/// them. A caller that reads other block sizes gets a coarser trace.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RowTrace {
     positions: Vec<Position>,
@@ -28,7 +31,7 @@ impl RowTrace {
     ///
     /// The library reports the current position between reads, and reads
     /// happen many times per row. The trace keeps only the transitions, so a
-    /// smaller read block does not change it.
+    /// run of reads inside one row adds one entry.
     pub fn record(&mut self, position: Position) {
         if self.positions.last() != Some(&position) {
             self.positions.push(position);
