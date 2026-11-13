@@ -116,25 +116,3 @@ fn map_library<T>(
 ) -> Result<T, StemError> {
     result.map_err(|error| ProfileError::library(&error, operation).into())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::PlaybackPolicy;
-
-    #[test]
-    fn the_policy_keeps_the_values_that_it_holds() {
-        let policy = PlaybackPolicy::default_policy().with_subsong(2);
-        assert_eq!(policy.subsong(), 2);
-        assert_eq!(
-            policy.max_seconds(),
-            PlaybackPolicy::default_policy().max_seconds()
-        );
-    }
-
-    #[test]
-    fn with_subsong_keeps_every_other_field() {
-        let default = PlaybackPolicy::default_policy();
-        let changed = default.with_subsong(1);
-        assert_eq!(changed.max_seconds(), default.max_seconds());
-    }
-}

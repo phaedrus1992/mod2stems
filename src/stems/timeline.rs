@@ -16,6 +16,11 @@ use crate::stems::StemError;
 /// The value is built from the completed renders, so it can only name a length
 /// that some render reached. A render longer than the timeline is a defect in
 /// the caller, and [`Self::pad`] refuses it rather than truncating audio.
+///
+/// A `Timeline` holds its length in stereo frames. A mono buffer has one sample
+/// per frame, so it names twice as many frames as the render that it came from.
+/// Downmix a render only after the timeline pads it, or the timeline reports the
+/// mono buffer as another render's length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Timeline {
     frames: usize,
