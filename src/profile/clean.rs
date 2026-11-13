@@ -2,12 +2,10 @@
 //!
 //! `clean` sets the global interpolation filter length, but a per-instrument
 //! resampling mode wins over it (`Sndmix.cpp:2565-2571`). The C API exposes no
-//! per-instrument resampling read, so the profile cannot name the affected
-//! instruments and refuses the module instead.
-//!
-//! The check reads the module type, so it covers the MT2 loader only. An
-//! extended instrument property `R...` sets the same field with no type change,
-//! and it stays open in #25. Design: `docs/design/pre-implementation-validation.md` §6.
+//! per-instrument resampling read, so the profile refuses a module that it
+//! cannot render as named. The module type covers the MT2 loader only, so the
+//! `R...` property stays open in #25.
+//! Design: `docs/design/pre-implementation-validation.md` §6.
 
 use crate::profile::ProfileError;
 
