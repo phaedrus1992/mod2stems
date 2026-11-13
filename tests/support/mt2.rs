@@ -123,12 +123,15 @@ fn instrument_entries() -> Vec<u8> {
     out
 }
 
+/// The tail of the instrument header is the note map, so the header must hold it.
+const _: () = assert!(INSTRUMENT_LEN - 2 >= GROUP_MAP_LEN);
+
 /// Writes the instrument header: one sample group, mapped to every note.
 fn instrument_header() -> [u8; INSTRUMENT_LEN] {
     let mut out = [0_u8; INSTRUMENT_LEN];
     out[0..2].copy_from_slice(&1_u16.to_le_bytes()); // one sample group
-    // Every note maps to group 0, which holds sample 0.
-    out[2..2 + GROUP_MAP_LEN].fill(0);
+    // Every note maps to group 0, which holds sample 0. The array starts at
+    // zero, so the map needs no write.
     out
 }
 
@@ -166,7 +169,7 @@ fn sample_header() -> [u8; SAMPLE_LEN] {
 /// Writes the one sample group, which points at sample 0.
 fn group() -> [u8; GROUP_LEN] {
     let mut out = [0_u8; GROUP_LEN];
-    out[0] = 0; // sample 0
+    // The array starts at zero, which is sample 0.
     out[1] = 64; // volume
     out
 }

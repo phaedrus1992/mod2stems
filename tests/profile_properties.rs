@@ -18,7 +18,10 @@ use proptest::test_runner::Config;
 use proptest::test_runner::TestCaseError;
 
 /// The inclusive rate range that the renderer accepts.
-const RATES: std::ops::RangeInclusive<i32> = 8_000..=192_000;
+///
+/// The crate owns the value, so a change to the range cannot leave this test
+/// generating rates that the resolver rejects.
+const RATES: std::ops::RangeInclusive<i32> = openmpt_ext::SAMPLE_RATE_RANGE;
 
 /// Returns one of the three profiles for a small index.
 fn profile_at(index: u8) -> Profile {
