@@ -8,6 +8,7 @@ use openmpt_ext::Module;
 
 use crate::profile::AmigaModel;
 use crate::profile::ProfileError;
+use crate::profile::apply::disable_amiga;
 use crate::profile::apply::enable_amiga;
 
 /// The ctl that selects what the library does at the song end.
@@ -49,9 +50,7 @@ pub fn read_pass(
 ) -> Result<Vec<f32>, ProfileError> {
     match model {
         Some(model) => enable_amiga(module, model)?,
-        None => module
-            .ctl_set_bool(crate::profile::apply::AMIGA_CTL, false)
-            .map_err(|error| ProfileError::library(&error, "the plain render control set"))?,
+        None => disable_amiga(module)?,
     }
     read_song(module, rate, max_seconds, &mut |_, _| {})
 }

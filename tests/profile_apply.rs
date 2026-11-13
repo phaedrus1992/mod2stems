@@ -257,14 +257,24 @@ fn a_render_limit_stops_a_long_read() -> Result<(), String> {
 fn clean_refuses_an_mt2_module() -> Result<(), String> {
     // A drum in an MT2 module can keep the nearest resampling mode, and the C
     // API exposes no way to name the drum. `clean` therefore refuses the module
-    // instead of rendering audio that is not windowed-sinc.
-    match require_clean_applies("mt2") {
-        Err(ProfileError::CleanDoesNotApply) => Ok(()),
-        Err(error) => Err(format!(
-            "the check reports {error:?}, expected CleanDoesNotApply"
-        )),
-        Ok(()) => Err("the check accepts an MT2 module for the clean profile".to_owned()),
+    // instead of rendering audio that is not windowed-sinc. The padded tokens
+    // prove one normalization feeds both checks.
+    for module_type in ["mt2", "MT2", " mt2 "] {
+        match require_clean_applies(module_type) {
+            Err(ProfileError::CleanDoesNotApply) => {}
+            Err(error) => {
+                return Err(format!(
+                    "the type {module_type:?} reports {error:?}, expected CleanDoesNotApply"
+                ));
+            }
+            Ok(()) => {
+                return Err(format!(
+                    "the check accepts {module_type:?} for the clean profile"
+                ));
+            }
+        }
     }
+    Ok(())
 }
 
 #[test]

@@ -103,9 +103,40 @@ pub(crate) fn enable_amiga(module: &mut Module, model: AmigaModel) -> Result<(),
         .map_err(|error| ProfileError::library(&error, "the Amiga switch read"))?;
     if !enabled {
         return Err(ProfileError::SettingMismatch {
-            setting: "the Amiga switch",
+            setting: "Amiga switch",
             wanted: 1,
             actual: 0,
+        });
+    }
+    Ok(())
+}
+
+/// Turns Amiga emulation off, and reads the switch back.
+///
+/// A build can accept the switch and still leave emulation on, so the plain
+/// render would read the Amiga resampler and the comparison would report that
+/// the profile does not apply.
+///
+/// # Errors
+///
+/// Returns [`ProfileError::MissingControl`] when the build has no emulation
+/// switch, [`ProfileError::SettingMismatch`] when the module reads back true,
+/// and a library error when a call fails.
+pub(crate) fn disable_amiga(module: &mut Module) -> Result<(), ProfileError> {
+    if !module.ctls().contains(AMIGA_CTL) {
+        return Err(ProfileError::MissingControl { key: AMIGA_CTL });
+    }
+    module
+        .ctl_set_bool(AMIGA_CTL, false)
+        .map_err(|error| ProfileError::library(&error, "the plain render control set"))?;
+    let enabled = module
+        .ctl_get_bool(AMIGA_CTL)
+        .map_err(|error| ProfileError::library(&error, "the plain render control read"))?;
+    if enabled {
+        return Err(ProfileError::SettingMismatch {
+            setting: "Amiga switch",
+            wanted: 0,
+            actual: 1,
         });
     }
     Ok(())

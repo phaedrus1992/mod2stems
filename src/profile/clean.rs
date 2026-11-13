@@ -35,10 +35,13 @@ const MT2_TYPE: &str = "mt2";
 /// Returns [`ProfileError::CleanDoesNotApply`] when the value names the MT2
 /// format.
 pub fn require_clean_applies(module_type: &str) -> Result<(), ProfileError> {
-    if module_type.trim().is_empty() {
+    // One normalization for both checks, so a padded token cannot pass the
+    // empty check and then miss the refusal.
+    let token = module_type.trim();
+    if token.is_empty() {
         return Err(ProfileError::MissingModuleType);
     }
-    if module_type.eq_ignore_ascii_case(MT2_TYPE) {
+    if token.eq_ignore_ascii_case(MT2_TYPE) {
         return Err(ProfileError::CleanDoesNotApply);
     }
     Ok(())
