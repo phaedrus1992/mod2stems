@@ -64,6 +64,10 @@ pub enum StemError {
         module_type: String,
         /// The type token of the module of the reference render.
         reference_type: String,
+        /// The profile and rate that the export uses.
+        profile: String,
+        /// The profile and rate that the reference uses.
+        reference_profile: String,
     },
     /// The channel lies outside the module's channel range.
     ChannelOutOfRange {
@@ -115,9 +119,11 @@ impl fmt::Display for StemError {
                 reference_channels,
                 module_type,
                 reference_type,
+                profile,
+                reference_profile,
             } => write!(
                 out,
-                "the reference render does not come from the module of channel {channel}. The module reads type {module_type:?} with {channels} channels, and the reference reads type {reference_type:?} with {reference_channels} channels. Render the reference from the same module bytes and the same profile, then export the channel"
+                "the reference render does not match channel {channel}. The module reads type {module_type:?} with {channels} channels under {profile}, and the reference reads type {reference_type:?} with {reference_channels} channels under {reference_profile}. Render the reference from the same module bytes and the same profile, then export the channel"
             ),
             Self::ChannelOutOfRange { channel, channels } => write!(
                 out,

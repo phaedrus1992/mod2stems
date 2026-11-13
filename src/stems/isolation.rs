@@ -8,6 +8,7 @@
 use openmpt_ext::Module;
 
 use crate::profile::DEFAULT_MAX_RENDER_SECONDS;
+use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
 use crate::profile::apply::apply_profile;
@@ -20,15 +21,21 @@ use crate::stems::trace::RowTrace;
 
 /// The unmuted render that every stem of one module must match.
 ///
-/// Only `reference_render` builds this type, so a caller cannot hand the flow
-/// check a trace from another module or another profile. The type records the
-/// channel count and the type token, and `export_channel` compares both with
-/// the module that it is about to render.
+/// The type records the channel count, the type token, the profile, and the
+/// output rate. `export_channel` compares each of them with the module that it
+/// is about to render, so a reference from another module type, another profile,
+/// or another rate fails instead of measuring two unrelated songs.
+///
+/// It does not record the module bytes. Two files of one type and one channel
+/// count pass the check, so the caller must render the reference from the same
+/// bytes it exports.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Reference {
     render: GuardedRender,
     channels: i32,
     module_type: String,
+    profile: Profile,
+    rate: i32,
 }
 
 impl Reference {
@@ -65,6 +72,8 @@ pub fn reference_render(
         render,
         channels: module.num_channels(),
         module_type,
+        profile: config.profile(),
+        rate: config.rate(),
     })
 }
 
@@ -91,13 +100,27 @@ pub fn export_channel(
     }
     apply_profile(config, module)?;
     let module_type = module_type(module)?;
-    if module_type != reference.module_type || channels != reference.channels {
+    if module_type != reference.module_type
+        || channels != reference.channels
+        || config.profile() != reference.profile
+        || config.rate() != reference.rate
+    {
         return Err(StemError::ReferenceMismatch {
             channel,
             channels,
             reference_channels: reference.channels,
             module_type,
             reference_type: reference.module_type.clone(),
+            profile: format!(
+                "the {} profile at {} Hz",
+                config.profile().as_str(),
+                config.rate()
+            ),
+            reference_profile: format!(
+                "the {} profile at {} Hz",
+                reference.profile.as_str(),
+                reference.rate
+            ),
         });
     }
     let method = silencing_for(&module_type)?;

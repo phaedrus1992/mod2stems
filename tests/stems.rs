@@ -320,3 +320,32 @@ fn a_channel_outside_the_module_fails() -> Result<(), String> {
         )),
     }
 }
+
+#[test]
+fn a_reference_from_another_profile_fails() -> Result<(), String> {
+    // The flow check measures one performance. A reference rendered under
+    // another profile is a different performance, so the export refuses it
+    // before it compares any trace.
+    let compatible = default_config()?;
+    let clean = ProfileRequest::clean()
+        .resolve()
+        .map_err(|error| error.to_string())?;
+    let mut module = load_muted_flow()?;
+    let reference =
+        reference_render(&mut module, &compatible).map_err(|error| error.to_string())?;
+    let mut isolated = load_muted_flow()?;
+    match export_channel(&mut isolated, &clean, 0, &reference) {
+        Err(StemError::ReferenceMismatch {
+            profile,
+            reference_profile,
+            ..
+        }) if profile.starts_with("the clean profile")
+            && reference_profile.starts_with("the compatible profile") =>
+        {
+            Ok(())
+        }
+        other => Err(format!(
+            "the export gives {other:?}, expected ReferenceMismatch"
+        )),
+    }
+}

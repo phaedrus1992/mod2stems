@@ -49,7 +49,7 @@ const ST3_RULE_TYPES: [&str; 12] = [
 /// select the unsafe method by default.
 const OTHER_RULE_TYPES: [&str; 43] = [
     "ams", "dbm", "digi", "dsym", "dtm", "fc", "gmc", "gt2", "gtk", "ice", "imf", "ims", "it",
-    "itp", "kris", "mdl", "med", "mid", "mod", "mptm", "mt2", "mus", "okt", "oxm", "plm", "ptm",
+    "itp", "j2b", "mdl", "med", "mid", "mod", "mptm", "mt2", "mus", "okt", "oxm", "plm", "ptm",
     "puma", "rmi", "rtm", "sfx", "sfx2", "smod", "st26", "stk", "stp", "symmod", "tcb", "uax",
     "ult", "unic", "wav", "xm", "xmf",
 ];
