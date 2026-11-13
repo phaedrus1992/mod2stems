@@ -203,6 +203,38 @@ fn repeat_count_accepts_zero_and_positive() -> Result<(), String> {
 }
 
 #[test]
+fn repeat_count_reads_back_the_value_that_it_set() -> Result<(), String> {
+    // A render that sets one pass must prove that the library kept it. A build
+    // that ignored the setter would repeat the song with no error.
+    let mut module = load()?;
+    module
+        .set_repeat_count(0)
+        .map_err(|error| error.to_string())?;
+    if module.repeat_count() != 0 {
+        return Err(format!(
+            "the repeat count reads {}, expected 0",
+            module.repeat_count()
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn the_default_repeat_count_plays_one_pass() -> Result<(), String> {
+    // `docs/design.md` §4.2 renders one pass of the order list. The library
+    // default is 0, and this check pins that the wrapper reads it as 0 rather
+    // than as the "repeat forever" value of -1.
+    let module = load()?;
+    if module.repeat_count() != 0 {
+        return Err(format!(
+            "the default repeat count is {}, expected 0",
+            module.repeat_count()
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn duration_is_positive() -> Result<(), String> {
     let mut module = load()?;
     let duration = module

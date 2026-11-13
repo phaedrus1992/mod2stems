@@ -47,6 +47,17 @@ impl Module {
         self.check_ok("set repeat count", &format!("count {count}"), ok)
     }
 
+    /// Returns the number of times that the order list repeats.
+    ///
+    /// The library reads `-1` as "repeat forever", `0` as one pass, and a
+    /// positive count as that many extra passes. This crate sets 0, so a caller
+    /// can read the value back and prove that the library kept it.
+    #[must_use]
+    pub fn repeat_count(&self) -> i32 {
+        // SAFETY: the handle is live. The call only reads a counter.
+        unsafe { openmpt_ext_sys::openmpt_module_get_repeat_count(self.core()) }
+    }
+
     /// Returns the current order.
     #[must_use]
     pub fn current_order(&self) -> i32 {

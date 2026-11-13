@@ -14,8 +14,8 @@
 //! parapointer tables, the instrument, the sample header, the pattern, and the
 //! sample data.
 
-use crate::fields::u16_field;
-use crate::fields::u32_field;
+use crate::header::u16_field;
+use crate::header::u32_field;
 
 /// Byte length of the IT file header.
 const HEADER_LEN: usize = 192;

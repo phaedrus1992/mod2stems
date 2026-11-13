@@ -8,12 +8,12 @@
 use openmpt_ext::Module;
 
 use crate::profile::AmigaModel;
-use crate::profile::DEFAULT_MAX_RENDER_SECONDS;
 use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
 use crate::profile::apply::METADATA_TYPE;
 use crate::profile::apply::apply_profile;
+use crate::stems::PlaybackPolicy;
 use crate::stems::StemError;
 use crate::stems::render::GuardedRender;
 use crate::stems::render::read_guarded;
@@ -33,6 +33,9 @@ use crate::stems::trace::RowTrace;
 /// It does not record the module bytes. Two files of one type and one channel
 /// count pass the check, so the caller must render the reference from the same
 /// bytes it exports.
+///
+/// It records the playback policy, because two subsongs of one module are two
+/// different songs. A trace comparison across them measures nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Reference {
     render: GuardedRender,
@@ -41,6 +44,7 @@ pub struct Reference {
     profile: Profile,
     amiga_model: Option<AmigaModel>,
     rate: i32,
+    policy: PlaybackPolicy,
 }
 
 impl Reference {
@@ -63,16 +67,23 @@ impl Reference {
 /// match. The samples stay available, because the common timeline comes from
 /// this render (`docs/design.md` §4.2).
 ///
+/// The playback policy sets the subsong, the repeat count, and the duration
+/// limit of every render of the export. This call stores it on the reference, so
+/// a stem that plays another subsong fails instead of comparing two songs.
+///
 /// # Errors
 ///
-/// Returns an error when the profile does not apply or when the render fails.
+/// Returns an error when the profile does not apply, when the policy does not
+/// apply, when the render fails, or when the render holds no samples.
 pub fn reference_render(
     module: &mut Module,
     config: &ProfileConfig,
+    policy: &PlaybackPolicy,
 ) -> Result<Reference, StemError> {
     apply_profile(config, module)?;
+    policy.apply(module)?;
     let module_type = module_type(module)?;
-    let render = read_guarded(module, config.rate(), DEFAULT_MAX_RENDER_SECONDS)?;
+    let render = read_guarded(module, config.rate(), policy.max_seconds())?;
     // Every stem copies this render's length, so an empty reference would make
     // every stem succeed with no audio.
     if render.samples.is_empty() {
@@ -88,6 +99,7 @@ pub fn reference_render(
         profile: config.profile(),
         amiga_model: config.amiga_model(),
         rate: config.rate(),
+        policy: *policy,
     })
 }
 
@@ -97,14 +109,20 @@ pub fn reference_render(
 /// discards it after the call, because a failed check leaves it partly
 /// silenced.
 ///
+/// `policy` must be the policy of `reference`. A policy that plays another
+/// subsong renders another song, so the call fails with
+/// [`StemError::ReferenceMismatch`].
+///
 /// # Errors
 ///
 /// Returns an error when the channel is outside the module, when the profile
-/// does not apply, when the silencing fails, when a silenced channel does not
+/// does not apply, when the policy does not apply, when the policy differs from
+/// the reference, when the silencing fails, when a silenced channel does not
 /// stay silenced, or when the song flow differs from `reference`.
 pub fn export_channel(
     module: &mut Module,
     config: &ProfileConfig,
+    policy: &PlaybackPolicy,
     channel: i32,
     reference: &Reference,
 ) -> Result<GuardedRender, StemError> {
@@ -113,12 +131,14 @@ pub fn export_channel(
         return Err(StemError::ChannelOutOfRange { channel, channels });
     }
     apply_profile(config, module)?;
+    policy.apply(module)?;
     let module_type = module_type(module)?;
     if module_type != reference.module_type
         || channels != reference.channels
         || config.profile() != reference.profile
         || config.amiga_model() != reference.amiga_model
         || config.rate() != reference.rate
+        || *policy != reference.policy
     {
         return Err(StemError::ReferenceMismatch {
             channel,
@@ -126,11 +146,17 @@ pub fn export_channel(
             reference_channels: reference.channels,
             module_type,
             reference_type: reference.module_type.clone(),
-            profile: describe_profile(config.profile(), config.amiga_model(), config.rate()),
+            profile: describe_profile(
+                config.profile(),
+                config.amiga_model(),
+                config.rate(),
+                *policy,
+            ),
             reference_profile: describe_profile(
                 reference.profile,
                 reference.amiga_model,
                 reference.rate,
+                reference.policy,
             ),
         });
     }
@@ -141,16 +167,11 @@ pub fn export_channel(
     // only the final state. The read covers one millisecond, so a command
     // cannot hide between two checks (docs/design.md §4.5).
     let mut drift = None;
-    let render = read_guarded_with(
-        module,
-        config.rate(),
-        DEFAULT_MAX_RENDER_SECONDS,
-        &mut |module| {
-            if drift.is_none() {
-                drift = verify_silence(module, method, channel, &silenced).err();
-            }
-        },
-    );
+    let render = read_guarded_with(module, config.rate(), policy.max_seconds(), &mut |module| {
+        if drift.is_none() {
+            drift = verify_silence(module, method, channel, &silenced).err();
+        }
+    });
     // A check that failed during the song rejects this stem. The `?` below
     // would drop that error when the read also fails, and the drift is the
     // reason that the stem is unusable.
@@ -174,19 +195,32 @@ pub fn export_channel(
     Ok(render)
 }
 
-/// Returns the profile, the Amiga model, and the rate of one config.
+/// Returns the profile, the Amiga model, the rate, and the policy of one
+/// render.
 ///
 /// The model is part of the settings, not of the profile name. Two references
 /// that name the `amiga` profile can still differ by model, so a mismatch
-/// message that names only the profile hides the reason.
-fn describe_profile(profile: Profile, model: Option<AmigaModel>, rate: i32) -> String {
+/// message that names only the profile hides the reason. The policy is part of
+/// the render for the same reason: two subsongs of one module are two different
+/// songs, and two limits end two renders at two points.
+fn describe_profile(
+    profile: Profile,
+    model: Option<AmigaModel>,
+    rate: i32,
+    policy: PlaybackPolicy,
+) -> String {
+    let subsong = policy.subsong();
+    let limit = policy.max_seconds();
     match model {
         Some(model) => format!(
-            "the {} profile with the {} model at {rate} Hz",
+            "the {} profile with the {} model at {rate} Hz, subsong {subsong}, and limit {limit} s",
             profile.as_str(),
             model.as_str()
         ),
-        None => format!("the {} profile at {rate} Hz", profile.as_str()),
+        None => format!(
+            "the {} profile at {rate} Hz, subsong {subsong}, and limit {limit} s",
+            profile.as_str()
+        ),
     }
 }
 

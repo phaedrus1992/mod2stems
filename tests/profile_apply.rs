@@ -28,6 +28,8 @@ use openmpt_ext::RenderParam;
 
 #[path = "support/fields.rs"]
 mod fields;
+#[path = "support/header.rs"]
+mod header;
 #[path = "support/it.rs"]
 mod it;
 #[path = "support/mt2.rs"]
