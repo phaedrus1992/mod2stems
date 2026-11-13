@@ -21,6 +21,9 @@ mod position;
 mod render;
 
 pub use command::Command;
+pub use ctl::AMIGA_CTL;
+pub use ctl::AMIGA_TYPE_CTL;
+pub use ctl::AT_END_CTL;
 pub use ctl::RenderParam;
 pub use error::OpenmptError;
 pub use error::Result;

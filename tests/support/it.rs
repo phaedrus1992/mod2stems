@@ -14,6 +14,9 @@
 //! parapointer tables, the instrument, the sample header, the pattern, and the
 //! sample data.
 
+use crate::fields::u16_field;
+use crate::fields::u32_field;
+
 /// Byte length of the IT file header.
 const HEADER_LEN: usize = 192;
 /// Byte length of one IT instrument header.
@@ -87,16 +90,6 @@ pub fn randomized_it() -> Vec<u8> {
     file.extend_from_slice(&pattern);
     file.extend_from_slice(&sample_data());
     file
-}
-
-/// Converts a byte count to a 16-bit header field.
-fn u16_field(value: usize) -> u16 {
-    u16::try_from(value).unwrap_or(u16::MAX)
-}
-
-/// Converts a byte count to a 32-bit header field.
-fn u32_field(value: usize) -> u32 {
-    u32::try_from(value).unwrap_or(u32::MAX)
 }
 
 /// Writes one parapointer as a little-endian 32-bit offset.

@@ -181,15 +181,16 @@ The key is the only fact that the API exposes about the per-instrument decision,
 Every other module type passes.
 
 The check does not cover every way to reach a per-instrument mode.
-`InstrumentExtensions.cpp:544` also sets the field from the extended instrument property `R...`, and an IT or XM file saved by OpenMPT can carry that block.
-A module of that kind still fails the profile's promise, and the type key does not reveal it.
-The limit is the same one that blocks the better behavior: no per-instrument resampling read exists in the C API.
-The MT2 case is the one that a stock module reaches without the extended property, so the check covers it.
-The `R...` gap has an open issue (#25), and `src/profile/clean.rs` names it in its module doc.
-That issue records the three options and the recommendation, so the limit is tracked work and not a comment.
-
+`InstrumentExtensions.cpp:544` also sets the field from the extended instrument property `R...`, and an IT, XM, or MPTM file saved by OpenMPT can carry that block.
+The type key does not reveal it, and no per-instrument resampling read exists in the C API, so the check stays a type-token refusal and the gap stays open in #25.
 `Load_mt2.cpp` is the only loader that sets a non-default mode from the file structure itself, with no extended property.
-It sets the nearest mode on a drum whose sample carries the "no interpolation" flag.
+It sets the nearest mode on a drum whose sample carries the "no interpolation" flag, and the MT2 refusal covers that case.
+
+A render comparison cannot close the `R...` gap, the way it closes the Amiga gap.
+Probe: render each vendored fixture at interpolation filter length 8 and at length 1, and compare the samples.
+`test.mod` differs at sample 23040 and `test.s3m` differs at sample 2, but `test.xm` and `test.mptm` are bit-identical.
+Those two render silence, and they are the vendored types that can carry `R...`, so the comparison would report "no per-instrument mode" for a module that has one.
+`tests/profile_apply.rs` pins the probe, so a library change that gives the comparison a signal fails the test.
 
 ## 7. Defaults to name in configuration
 

@@ -30,9 +30,9 @@ fn resolve_err(request: ProfileRequest) -> Result<ProfileError, String> {
     }
 }
 
-/// Compares two renders that must compare.
+/// Compares a plain render with an emulated one that must compare.
 fn compare(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerdict, String> {
-    verify_amiga_applies(plain, emulated).map_err(|error| error.to_string())
+    verify_amiga_applies(plain, plain, emulated).map_err(|error| error.to_string())
 }
 
 #[test]
@@ -276,7 +276,7 @@ fn a_verdict_that_does_not_apply_becomes_the_profile_error() -> Result<(), Strin
 
 #[test]
 fn renders_of_different_lengths_are_not_a_comparison() -> Result<(), String> {
-    let error = match verify_amiga_applies(&[0.0_f32, 1.0], &[0.0_f32]) {
+    let error = match verify_amiga_applies(&[0.0_f32, 1.0], &[0.0_f32, 1.0], &[0.0_f32]) {
         Ok(verdict) => return Err(format!("the check reported {verdict:?}")),
         Err(error) => error,
     };

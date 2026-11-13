@@ -5,16 +5,17 @@
 
 use openmpt_ext::Module;
 
+pub use openmpt_ext::AMIGA_CTL;
+pub use openmpt_ext::AMIGA_TYPE_CTL;
+
 use crate::profile::AmigaModel;
 use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
 use crate::profile::clean::require_clean_applies;
 
-/// The ctl that turns the stock Amiga resampler on.
-pub const AMIGA_CTL: &str = "render.resampler.emulate_amiga";
-/// The ctl that selects the Amiga filter model.
-pub const AMIGA_TYPE_CTL: &str = "render.resampler.emulate_amiga_type";
+/// The metadata key that reports the module type.
+pub const METADATA_TYPE: &str = "type";
 
 /// The controls that the `amiga` profile needs.
 pub const AMIGA_CONTROLS: [&str; 2] = [AMIGA_CTL, AMIGA_TYPE_CTL];
@@ -41,12 +42,12 @@ pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), 
     // partly written. It reads the type, so the apply path cannot forget it.
     if config.profile() == Profile::Clean {
         let module_type = module
-            .metadata("type")
+            .metadata(METADATA_TYPE)
             .map_err(|error| ProfileError::library(&error, "the clean applicability read"))?;
         require_clean_applies(&module_type)?;
     }
     if let Some(model) = config.amiga_model() {
-        enable_amiga(module, model, "the profile control set")?;
+        enable_amiga(module, model)?;
     }
     for (param, value) in config.settings().render_params() {
         module
@@ -74,28 +75,69 @@ pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), 
 ///
 /// The model goes in first. The library applies the model only while emulation
 /// is already on, so the reverse order would leave the default model in place.
-pub(crate) fn enable_amiga(
-    module: &mut Module,
-    model: AmigaModel,
-    operation: &'static str,
-) -> Result<(), ProfileError> {
+///
+/// The emulation switch is read back separately. A build can accept the switch
+/// and still leave emulation off, and the module type readback does not show
+/// that.
+pub(crate) fn enable_amiga(module: &mut Module, model: AmigaModel) -> Result<(), ProfileError> {
     if let Some(key) = missing_control(module.ctls(), &AMIGA_CONTROLS) {
         return Err(ProfileError::MissingControl { key });
     }
     module
         .ctl_set_text(AMIGA_TYPE_CTL, model.as_str())
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga model set"))?;
     module
         .ctl_set_bool(AMIGA_CTL, true)
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga switch set"))?;
     let found = module
         .ctl_get_text(AMIGA_TYPE_CTL)
-        .map_err(|error| ProfileError::library(&error, operation))?;
+        .map_err(|error| ProfileError::library(&error, "the Amiga model read"))?;
     if found != model.as_str() {
         return Err(ProfileError::SettingTextMismatch {
             setting: AMIGA_TYPE_CTL,
             wanted: model.as_str(),
             actual: found,
+        });
+    }
+    let enabled = module
+        .ctl_get_bool(AMIGA_CTL)
+        .map_err(|error| ProfileError::library(&error, "the Amiga switch read"))?;
+    if !enabled {
+        return Err(ProfileError::SettingMismatch {
+            setting: "Amiga switch",
+            wanted: 1,
+            actual: 0,
+        });
+    }
+    Ok(())
+}
+
+/// Turns Amiga emulation off, and reads the switch back.
+///
+/// A build can accept the switch and still leave emulation on, so the plain
+/// render would read the Amiga resampler and the comparison would report that
+/// the profile does not apply.
+///
+/// # Errors
+///
+/// Returns [`ProfileError::MissingControl`] when the build has no emulation
+/// switch, [`ProfileError::SettingMismatch`] when the module reads back true,
+/// and a library error when a call fails.
+pub(crate) fn disable_amiga(module: &mut Module) -> Result<(), ProfileError> {
+    if !module.ctls().contains(AMIGA_CTL) {
+        return Err(ProfileError::MissingControl { key: AMIGA_CTL });
+    }
+    module
+        .ctl_set_bool(AMIGA_CTL, false)
+        .map_err(|error| ProfileError::library(&error, "the plain render control set"))?;
+    let enabled = module
+        .ctl_get_bool(AMIGA_CTL)
+        .map_err(|error| ProfileError::library(&error, "the plain render control read"))?;
+    if enabled {
+        return Err(ProfileError::SettingMismatch {
+            setting: "Amiga switch",
+            wanted: 0,
+            actual: 1,
         });
     }
     Ok(())

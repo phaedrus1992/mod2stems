@@ -3,6 +3,8 @@
 use std::error::Error;
 use std::fmt;
 
+use crate::profile::AmigaModel;
+
 /// One failed profile or rate resolution, or one failed profile apply.
 ///
 /// The resolver fails before any render starts, so every variant states the
@@ -122,7 +124,10 @@ impl fmt::Display for ProfileError {
             ),
             Self::MissingAmigaModel => write!(
                 out,
-                "the amiga profile needs a filter model. Choose a500, a1200, or unfiltered"
+                "the amiga profile needs a filter model. Choose {}, {}, or {}",
+                AmigaModel::A500.as_str(),
+                AmigaModel::A1200.as_str(),
+                AmigaModel::Unfiltered.as_str()
             ),
             Self::UnexpectedAmigaModel { profile, model } => write!(
                 out,
@@ -146,7 +151,7 @@ impl fmt::Display for ProfileError {
                 actual,
             } => write!(
                 out,
-                "the profile sets the {setting} to {wanted} and the module reads back {actual}. The profile did not take effect. Use a libopenmpt build that offers the value"
+                "the profile sets {setting} to {wanted} and the module reads back {actual}. The profile did not take effect. Use a libopenmpt build that offers the value"
             ),
             Self::SettingTextMismatch {
                 setting,

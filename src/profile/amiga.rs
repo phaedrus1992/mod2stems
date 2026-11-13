@@ -26,11 +26,17 @@ pub enum AmigaVerdict {
     DoesNotApply,
 }
 
-/// Compares a plain render with an emulated render of the same module.
+/// Compares two plain renders and an emulated render of the same module.
 ///
-/// `plain` is the baseline render, made with Amiga emulation off, and
-/// `emulated` is the render with it on. Both renders start from the beginning
-/// of the same song, with the same rate and the same controls.
+/// `plain` is the first render, made with Amiga emulation off, `again` is a
+/// second render with the same settings, and `emulated` is the render with
+/// emulation on. All three start from the beginning of the same song, with the
+/// same rate and the same controls.
+///
+/// The call runs the determinism check on the two plain renders itself. A
+/// randomized module renders differently on every instance, so its emulated
+/// render would compare unequal for a reason that has nothing to do with the
+/// Amiga resampler. The check stops that case, and the caller cannot skip it.
 ///
 /// The comparison is exact, by sample bits. A module that does not use the
 /// Amiga resampler takes the same code path in both renders, so the samples
@@ -40,17 +46,16 @@ pub enum AmigaVerdict {
 ///
 /// # Errors
 ///
-/// Returns an error when the two renders differ in length, because a length
-/// difference means the two renders did not use the same settings.
-///
-/// # Preconditions
-///
-/// Both renders must come from a module that [`require_deterministic`] calls
-/// deterministic. Two renders of a randomized module differ for reasons that
-/// have nothing to do with the Amiga resampler, so the verdict would report
-/// `Applies` for every such module. Make both plain renders first, and call
-/// [`require_deterministic`] on the pair, before this function runs.
-pub fn verify_amiga_applies(plain: &[f32], emulated: &[f32]) -> Result<AmigaVerdict, ProfileError> {
+/// Returns [`ProfileError::NondeterministicLength`] or
+/// [`ProfileError::Nondeterministic`] when the two plain renders differ, and
+/// [`ProfileError::AmigaComparisonLength`] when a plain render and the emulated
+/// render differ in length.
+pub fn verify_amiga_applies(
+    plain: &[f32],
+    again: &[f32],
+    emulated: &[f32],
+) -> Result<AmigaVerdict, ProfileError> {
+    require_deterministic(plain, again)?;
     if plain.len() != emulated.len() {
         return Err(ProfileError::AmigaComparisonLength {
             plain: plain.len(),
