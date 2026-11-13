@@ -8,6 +8,7 @@ use openmpt_ext::Module;
 
 use crate::profile::ProfileError;
 use crate::profile::render::read_song;
+use crate::profile::render::trace_block_frames;
 use crate::stems::position::Position;
 use crate::stems::trace::RowTrace;
 
@@ -55,9 +56,18 @@ pub(crate) fn read_guarded_with(
     observe: &mut dyn FnMut(&mut Module),
 ) -> Result<GuardedRender, ProfileError> {
     let mut trace = RowTrace::default();
-    let samples = read_song(module, rate, max_seconds, &mut |module| {
-        trace.record(Position::new(module.current_order(), module.current_row()));
-        observe(module);
-    })?;
+    // The trace samples only between reads, so one read must not span a row.
+    // `trace_block_frames` sets the longest window that a command cannot hide
+    // in, and the guard needs the same window.
+    let samples = read_song(
+        module,
+        rate,
+        max_seconds,
+        trace_block_frames(rate),
+        &mut |module| {
+            trace.record(Position::new(module.current_order(), module.current_row()));
+            observe(module);
+        },
+    )?;
     Ok(GuardedRender { samples, trace })
 }

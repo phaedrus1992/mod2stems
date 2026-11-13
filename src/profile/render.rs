@@ -21,8 +21,33 @@ pub const AT_END_STOP: &str = "stop";
 ///
 /// A larger block lowers the call count. A smaller block lets the song end
 /// land closer to the true frame count, which keeps the two Amiga passes equal
-/// when the song has a fractional block.
-const BLOCK_FRAMES: usize = 4800;
+/// when the song has a fractional block. The profile read records no trace, so
+/// a block may span a row.
+pub(crate) const PROFILE_BLOCK_FRAMES: usize = 4800;
+
+/// The milliseconds that one trace read covers.
+///
+/// A player tick is the shortest window in which a command can run, so a read
+/// longer than one tick can hide a row and a channel-volume change. Classic
+/// mode plays a 2.5 ms tick, and Alternative mode plays a 1 ms tick at tempo
+/// 1000, the highest tempo that the library accepts. Both hold at every output
+/// rate (`Sndfile.cpp:1853,1861`). Modern mode can play a shorter tick, so a
+/// command that starts and ends inside one millisecond still escapes the check.
+/// The window is a guard, not a proof.
+/// Design: `docs/design.md` §4.5.
+const TRACE_MILLIS: i32 = 1;
+
+/// The milliseconds in one second, so a rate in Hz gives a frame count.
+const MILLIS_PER_SECOND: i32 = 1_000;
+
+/// Returns the frames that one trace read requests at `rate`.
+///
+/// The division truncates, so the window is never longer than one millisecond.
+/// The result is at least one frame, because a read of zero frames never ends.
+pub(crate) fn trace_block_frames(rate: i32) -> usize {
+    let frames = rate / MILLIS_PER_SECOND * TRACE_MILLIS;
+    usize::try_from(frames).unwrap_or(1).max(1)
+}
 
 /// The maximum duration that a profile render reads.
 ///
@@ -53,7 +78,7 @@ pub fn read_pass(
         Some(model) => enable_amiga(module, model)?,
         None => disable_amiga(module)?,
     }
-    read_song(module, rate, max_seconds, &mut |_| {})
+    read_song(module, rate, max_seconds, PROFILE_BLOCK_FRAMES, &mut |_| {})
 }
 
 /// Reads one whole song, and calls `observe` before each block.
@@ -62,6 +87,10 @@ pub fn read_pass(
 /// never starts a read without either. The isolation renders use the observer
 /// to record the song flow and to check the silenced channels during the song.
 /// The profile renders pass an observer that does nothing.
+///
+/// `block_frames` sets how much audio one read covers, and so how often
+/// `observe` runs. A caller that checks a mid-song state passes no more than
+/// [`trace_block_frames`] for its rate.
 ///
 /// # Errors
 ///
@@ -72,6 +101,7 @@ pub(crate) fn read_song(
     module: &mut Module,
     rate: i32,
     max_seconds: u64,
+    block_frames: usize,
     observe: &mut dyn FnMut(&mut Module),
 ) -> Result<Vec<f32>, ProfileError> {
     // The rate limit is computed before the first read, so a rate outside the
@@ -92,7 +122,7 @@ pub(crate) fn read_song(
         .map_err(|error| ProfileError::library(&error, "the render end control set"))?;
     let limit = frame_limit(rate, max_seconds);
     let mut out = Vec::new();
-    let mut buf = vec![0.0_f32; BLOCK_FRAMES * 2];
+    let mut buf = vec![0.0_f32; block_frames.saturating_mul(2)];
     loop {
         // The limit is checked before the read, so a reached limit stops the
         // loop even when the library would return more samples.

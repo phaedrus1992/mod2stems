@@ -55,6 +55,10 @@ const BREAK_ROW: u8 = 0x20;
 const NOTE: u8 = 0x40;
 /// The instrument slot that the note plays.
 const INSTRUMENT: u8 = 1;
+/// The default speed that a fixture plays at unless it names another.
+///
+/// Speed 6 is the Scream Tracker 3 default, so a row lasts six ticks.
+const DEFAULT_SPEED: u8 = 6;
 /// The `cwtv` value that selects the `ScreamTracker` branch.
 ///
 /// The tracker probe rejects its special cases only when the ultra-click field
@@ -83,25 +87,30 @@ const _: () = assert!(SAMPLE_AT.is_multiple_of(PARAGRAPH));
 /// visits a different sequence.
 #[must_use]
 pub fn muted_flow_s3m() -> Vec<u8> {
-    assemble(&pattern())
+    assemble(&pattern(), DEFAULT_SPEED)
 }
 
 /// Returns the bytes of a module whose silenced channel raises its volume mid-song.
 ///
 /// Channel 1 plays a note at volume 0, raises the volume at row 10, and sets it
-/// back to zero at row 30. The end of the song therefore reads zero again, so a
-/// check that runs only after the render cannot see the raise.
+/// back to zero at row 11. The song runs at speed 1, so one row is one tick.
+/// The raise therefore lasts about 20 ms at 48 kHz. A check that reads the
+/// volume once per 100 ms block can miss the raise, so this fixture pins the
+/// size of the read window.
 #[must_use]
 pub fn volume_swing_s3m() -> Vec<u8> {
-    assemble(&volume_swing_pattern())
+    assemble(&volume_swing_pattern(), 1)
 }
 
 /// Writes the header, tables, sample, pattern, and data around one packed pattern.
-fn assemble(packed: &[u8]) -> Vec<u8> {
+///
+/// `speed` is the default speed in the header. A speed of 1 makes one row last
+/// one tick, which is the shortest row that the fixture can play.
+fn assemble(packed: &[u8], speed: u8) -> Vec<u8> {
     let pattern_at = SAMPLE_AT + SAMPLE_HEADER_LEN;
     let data_at = pattern_at + packed.len();
     let mut file = vec![0_u8; SAMPLE_AT];
-    file[..HEADER_LEN].copy_from_slice(&header());
+    file[..HEADER_LEN].copy_from_slice(&header(speed));
     file[HEADER_LEN..HEADER_LEN + ORDERS].copy_from_slice(&[0_u8, 0]);
     let sample_pointer = paragraph(SAMPLE_AT);
     file[SMP_POINTERS_AT..SMP_POINTERS_AT + PARAPOINTER_LEN].copy_from_slice(&sample_pointer);
@@ -120,7 +129,9 @@ fn paragraph(offset: usize) -> [u8; PARAPOINTER_LEN] {
 }
 
 /// Writes the file header.
-fn header() -> [u8; HEADER_LEN] {
+///
+/// `speed` is the default speed that the header records.
+fn header(speed: u8) -> [u8; HEADER_LEN] {
     let mut out = [0_u8; HEADER_LEN];
     out[0..11].copy_from_slice(b"MutedFlow\0\0");
     out[28] = 0x1A;
@@ -133,7 +144,7 @@ fn header() -> [u8; HEADER_LEN] {
     out[42..44].copy_from_slice(&1_u16.to_le_bytes());
     out[44..48].copy_from_slice(b"SCRM");
     out[48] = 64;
-    out[49] = 6;
+    out[49] = speed;
     out[50] = 125;
     // The high bit makes the module stereo, which the loader accepts.
     out[51] = 0xB0;
@@ -184,11 +195,12 @@ fn pattern() -> Vec<u8> {
 }
 
 /// Writes a packed pattern whose channel 1 raises its volume at row 10 and
-/// sets it back to zero at row 30.
+/// sets it back to zero at row 11.
 ///
 /// The row that raises the volume carries a channel-volume command (`M`), which
 /// writes the playback channel volume. The end of the song reads zero again, so
-/// only a check that runs during the song can see the raise.
+/// only a check that runs during the song can see the raise. One row spans one
+/// tick, so the raise is short enough to sit inside one large read.
 fn volume_swing_pattern() -> Vec<u8> {
     let mut cells = Vec::new();
     // Channel 0 plays the note, and channel 1 starts at volume 0.
@@ -198,10 +210,9 @@ fn volume_swing_pattern() -> Vec<u8> {
     cells.extend(std::iter::repeat_n(END_OF_ROW, 9));
     // Row 10 raises the silenced channel volume to the maximum.
     cells.extend_from_slice(&[0x81, b'M', 64, END_OF_ROW]);
-    cells.extend(std::iter::repeat_n(END_OF_ROW, 19));
-    // Row 30 sets it back to zero.
+    // Row 11 sets it back to zero.
     cells.extend_from_slice(&[0x81, b'M', 0, END_OF_ROW]);
-    cells.extend(std::iter::repeat_n(END_OF_ROW, ROWS - 31));
+    cells.extend(std::iter::repeat_n(END_OF_ROW, ROWS - 12));
     let mut out = u16_field(cells.len()).to_le_bytes().to_vec();
     out.extend_from_slice(&cells);
     while !out.len().is_multiple_of(PARAGRAPH) {

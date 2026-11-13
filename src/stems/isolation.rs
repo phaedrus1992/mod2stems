@@ -136,7 +136,8 @@ pub fn export_channel(
     let silenced = silence(module, method, channel)?;
     // The check runs before each block, because a channel-volume command or a
     // song restart raises the value mid-song and the end-of-song read shows
-    // only the final state.
+    // only the final state. The read covers one millisecond, so a command
+    // cannot hide between two checks (docs/design.md §4.5).
     let mut drift = None;
     let render = read_guarded_with(
         module,
@@ -147,10 +148,14 @@ pub fn export_channel(
                 drift = verify_silence(module, method, channel, &silenced).err();
             }
         },
-    )?;
+    );
+    // A check that failed during the song rejects this stem. The `?` below
+    // would drop that error when the read also fails, and the drift is the
+    // reason that the stem is unusable.
     if let Some(error) = drift {
         return Err(error);
     }
+    let render = render?;
     if let Some(index) = render.trace.first_divergence(reference.trace()) {
         return Err(StemError::TraceDiverged {
             exported: channel,

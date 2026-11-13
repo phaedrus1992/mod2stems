@@ -303,8 +303,10 @@ Keep a discovered pair even if its render is silent, and record that it is silen
 Do not use an amplitude threshold as a substitute for discovery.
 
 The row trace polls the position after each read, so a block that spans two rows hides one of them.
-Read the trace render in blocks no longer than `TRACE_BLOCK_FRAMES`.
-The implementation derives that constant from the shortest tick that libopenmpt can play at the output rate.
+Read the trace render in blocks of 1 ms, which is shorter than the 2.5 ms tick that Classic tempo mode plays at the highest accepted tempo.
+The isolation guard samples the silenced channels at the same window, so a channel-volume command cannot hide between two reads.
+A Modern-tempo module can play a shorter tick, so a command that starts and ends inside 1 ms still escapes.
+`trace_block_frames` computes the window.
 
 #### Isolation strategies
 
