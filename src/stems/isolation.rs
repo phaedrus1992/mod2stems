@@ -12,6 +12,7 @@ use crate::profile::DEFAULT_MAX_RENDER_SECONDS;
 use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
+use crate::profile::apply::METADATA_TYPE;
 use crate::profile::apply::apply_profile;
 use crate::stems::StemError;
 use crate::stems::render::GuardedRender;
@@ -192,7 +193,7 @@ fn describe_profile(profile: Profile, model: Option<AmigaModel>, rate: i32) -> S
 /// Returns the type token that selects the silencing method.
 fn module_type(module: &Module) -> Result<String, ProfileError> {
     module
-        .metadata("type")
+        .metadata(METADATA_TYPE)
         .map_err(|error| ProfileError::library(&error, "the module type read"))
 }
 

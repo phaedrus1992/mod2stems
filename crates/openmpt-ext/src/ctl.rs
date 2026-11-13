@@ -85,22 +85,31 @@ enum CtlType {
     Text,
 }
 
+/// The ctl that turns the stock Amiga resampler on.
+pub const AMIGA_CTL: &str = "render.resampler.emulate_amiga";
+/// The ctl that selects the Amiga filter model.
+pub const AMIGA_TYPE_CTL: &str = "render.resampler.emulate_amiga_type";
+/// The ctl that selects what the library does at the song end.
+pub const AT_END_CTL: &str = "play.at_end";
+
 /// Returns the type of a ctl, or `None` for a key that this crate does not know.
 ///
 /// The table copies `get_ctl_infos` from `libopenmpt_impl.cpp`. The library does
 /// not check the type in a release build: a setter of the wrong type returns
 /// success and changes nothing. This table makes that case an error.
 fn ctl_type(key: &str) -> Option<CtlType> {
+    // The named keys come from this module's constants, so a rename cannot
+    // leave the type table describing a ctl that the caller no longer sets.
     let kind = match key {
         "load.skip_samples"
         | "load.skip_patterns"
         | "load.skip_plugins"
         | "load.skip_subsongs_init"
         | "seek.sync_samples"
-        | "render.resampler.emulate_amiga" => CtlType::Bool,
+        | AMIGA_CTL => CtlType::Bool,
         "subsong" | "dither" => CtlType::Int,
         "play.tempo_factor" | "play.pitch_factor" | "render.opl.volume_factor" => CtlType::Float,
-        "play.at_end" | "render.resampler.emulate_amiga_type" => CtlType::Text,
+        AT_END_CTL | AMIGA_TYPE_CTL => CtlType::Text,
         _ => return None,
     };
     Some(kind)

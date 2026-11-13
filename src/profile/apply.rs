@@ -5,16 +5,17 @@
 
 use openmpt_ext::Module;
 
+pub use openmpt_ext::AMIGA_CTL;
+pub use openmpt_ext::AMIGA_TYPE_CTL;
+
 use crate::profile::AmigaModel;
 use crate::profile::Profile;
 use crate::profile::ProfileConfig;
 use crate::profile::ProfileError;
 use crate::profile::clean::require_clean_applies;
 
-/// The ctl that turns the stock Amiga resampler on.
-pub const AMIGA_CTL: &str = "render.resampler.emulate_amiga";
-/// The ctl that selects the Amiga filter model.
-pub const AMIGA_TYPE_CTL: &str = "render.resampler.emulate_amiga_type";
+/// The metadata key that reports the module type.
+pub const METADATA_TYPE: &str = "type";
 
 /// The controls that the `amiga` profile needs.
 pub const AMIGA_CONTROLS: [&str; 2] = [AMIGA_CTL, AMIGA_TYPE_CTL];
@@ -41,7 +42,7 @@ pub fn apply_profile(config: &ProfileConfig, module: &mut Module) -> Result<(), 
     // partly written. It reads the type, so the apply path cannot forget it.
     if config.profile() == Profile::Clean {
         let module_type = module
-            .metadata("type")
+            .metadata(METADATA_TYPE)
             .map_err(|error| ProfileError::library(&error, "the clean applicability read"))?;
         require_clean_applies(&module_type)?;
     }

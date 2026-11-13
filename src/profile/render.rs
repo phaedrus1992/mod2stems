@@ -4,6 +4,7 @@
 //! `play.at_end` to `stop`, and §4.2 caps the duration, so a pathological
 //! module fails the export instead of allocating without a limit.
 
+use openmpt_ext::AT_END_CTL;
 use openmpt_ext::Module;
 use openmpt_ext::SAMPLE_RATE_RANGE;
 
@@ -12,8 +13,6 @@ use crate::profile::ProfileError;
 use crate::profile::apply::disable_amiga;
 use crate::profile::apply::enable_amiga;
 
-/// The ctl that selects what the library does at the song end.
-pub const AT_END_CTL: &str = "play.at_end";
 /// The value that ends the render at the song end, with no fade.
 pub const AT_END_STOP: &str = "stop";
 
