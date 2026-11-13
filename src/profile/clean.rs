@@ -12,8 +12,9 @@ use crate::profile::ProfileError;
 /// The module type that the `clean` profile cannot render as named.
 ///
 /// The MT2 loader returns this type through the `type` metadata key
-/// (`Load_mt2.cpp:453`, `libopenmpt_impl.cpp:1247`).
-const MT2_TYPE: &str = "mt2";
+/// (`Load_mt2.cpp:453`, `libopenmpt_impl.cpp:1247`). The silencing table
+/// refuses it too, so both modules read one spelling.
+pub const MT2_TYPE: &str = "mt2";
 
 /// Fails when the module type names a format that `clean` cannot render.
 ///

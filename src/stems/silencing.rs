@@ -10,6 +10,8 @@
 //! wrong method gives a stem with missing effects and no check can see it.
 //! Design: `docs/design.md` §4.1.
 
+use crate::profile::ProfileError;
+use crate::profile::clean::MT2_TYPE;
 use crate::stems::StemError;
 
 /// How a profile render silences the channels that it does not export.
@@ -49,7 +51,7 @@ const ST3_RULE_TYPES: [&str; 12] = [
 /// select the unsafe method by default.
 const OTHER_RULE_TYPES: [&str; 43] = [
     "ams", "dbm", "digi", "dsym", "dtm", "fc", "gmc", "gt2", "gtk", "ice", "imf", "ims", "it",
-    "itp", "j2b", "mdl", "med", "mid", "mod", "mptm", "mt2", "mus", "okt", "oxm", "plm", "ptm",
+    "itp", "j2b", "mdl", "med", "mid", "mod", "mptm", MT2_TYPE, "mus", "okt", "oxm", "plm", "ptm",
     "puma", "rmi", "rtm", "sfx", "sfx2", "smod", "st26", "stk", "stp", "symmod", "tcb", "uax",
     "ult", "unic", "wav", "xm", "xmf",
 ];
@@ -72,14 +74,14 @@ const OTHER_RULE_TYPES: [&str; 43] = [
 ///
 /// # Errors
 ///
-/// Returns [`StemError::MissingModuleType`] for an empty value, because a module
+/// Returns [`ProfileError::MissingModuleType`] for an empty value, because a module
 /// that reports no type cannot be shown to keep its effects on a silenced
 /// channel. Returns [`StemError::UncertainRules`] for a token that is not in
 /// either table.
 pub fn silencing_for(module_type: &str) -> Result<Silencing, StemError> {
     let token = module_type.trim();
     if token.is_empty() {
-        return Err(StemError::MissingModuleType);
+        return Err(ProfileError::MissingModuleType.into());
     }
     let lower = token.to_ascii_lowercase();
     if ST3_RULE_TYPES.contains(&lower.as_str()) {

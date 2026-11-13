@@ -6,8 +6,10 @@
 //! channel mute.
 
 use mod2stems::ProfileConfig;
+use mod2stems::ProfileError;
 use mod2stems::ProfileRequest;
 use mod2stems::StemError;
+use mod2stems::profile::apply::METADATA_TYPE;
 use mod2stems::profile::apply::apply_profile;
 use mod2stems::stems::Position;
 use mod2stems::stems::RowTrace;
@@ -98,7 +100,7 @@ fn the_type_token_ignores_case() -> Result<(), String> {
 fn a_module_without_a_type_fails() -> Result<(), String> {
     for name in ["", "   "] {
         match silencing_for(name) {
-            Err(StemError::MissingModuleType) => {}
+            Err(StemError::Profile(ProfileError::MissingModuleType)) => {}
             other => {
                 return Err(format!(
                     "{name:?} gives {other:?}, expected MissingModuleType"
@@ -174,7 +176,12 @@ fn the_fixture_selects_the_s3m_rules() -> Result<(), String> {
             s3m::CHANNELS
         ));
     }
-    let module_type = module.metadata("type").map_err(|error| error.to_string())?;
+    let module_type = module
+        .metadata(METADATA_TYPE)
+        .map_err(|error| error.to_string())?;
+    if module_type.is_empty() {
+        return Err("the fixture reports an empty type, so a renamed key would pass".to_owned());
+    }
     match silencing_for(&module_type).map_err(|error| error.to_string())? {
         Silencing::ZeroVolume => Ok(()),
         Silencing::ChannelMute => Err(format!(
@@ -294,15 +301,10 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     let channels = plain.num_channels();
     let mut sum = vec![0.0_f32; reference.samples().len()];
     for channel in 0..channels {
-        let mut isolated = load(name)?;
         // The loop bound comes from one instance and the render runs on
-        // another, so the two counts must agree before a channel is exported.
-        if isolated.num_channels() != channels {
-            return Err(format!(
-                "{name} has {channels} channels in one load and {} in another",
-                isolated.num_channels()
-            ));
-        }
+        // another. `export_channel` compares the second instance's count with
+        // the reference, so a differing count fails there.
+        let mut isolated = load(name)?;
         let exported = export_channel(&mut isolated, &config, channel, &reference)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {
