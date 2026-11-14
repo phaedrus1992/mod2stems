@@ -74,6 +74,12 @@ pub(crate) fn apply(gain: Gain, samples: &[f32]) -> Result<Vec<f32>, EncodeError
 mod tests {
     use super::Gain;
     use super::apply;
+    use proptest::collection::vec;
+    use proptest::prelude::any;
+    use proptest::prelude::prop_assert;
+    use proptest::prelude::prop_assert_eq;
+    use proptest::proptest;
+    use proptest::test_runner::Config;
 
     #[test]
     fn unity_changes_nothing() -> Result<(), String> {
@@ -113,6 +119,40 @@ mod tests {
         match apply(gain, &[f32::MAX]) {
             Err(super::EncodeError::NotFinite { .. }) => Ok(()),
             other => Err(format!("an overflowing product gives {other:?}")),
+        }
+    }
+
+    proptest! {
+        #![proptest_config(Config::with_cases(64))]
+
+        /// Every sample scales by the same factor, and its sign stays.
+        #[test]
+        fn the_gain_scales_every_sample_by_one_factor(
+            samples in vec(-8.0_f32..8.0, 0..64),
+            factor in 0.01_f32..8.0,
+        ) {
+            let gain = Gain::new(factor)
+                .map_err(|error| proptest::test_runner::TestCaseError::fail(error.to_string()))?;
+            let scaled = apply(gain, &samples)
+                .map_err(|error| proptest::test_runner::TestCaseError::fail(error.to_string()))?;
+            prop_assert_eq!(scaled.len(), samples.len());
+            for (index, (source, result)) in samples.iter().zip(&scaled).enumerate() {
+                prop_assert_eq!(result.to_bits(), (source * factor).to_bits());
+                if *source != 0.0 {
+                    prop_assert_eq!(result.is_sign_negative(), source.is_sign_negative());
+                }
+                prop_assert!(result.is_finite(), "sample {index} is not finite");
+            }
+        }
+
+        /// Unity keeps every sample bit for bit.
+        #[test]
+        fn unity_keeps_every_bit(samples in vec(any::<f32>(), 0..64)) {
+            let scaled = apply(Gain::unity(), &samples)
+                .map_err(|error| proptest::test_runner::TestCaseError::fail(error.to_string()))?;
+            let before: Vec<u32> = samples.iter().map(|sample| sample.to_bits()).collect();
+            let after: Vec<u32> = scaled.iter().map(|sample| sample.to_bits()).collect();
+            prop_assert_eq!(after, before);
         }
     }
 }

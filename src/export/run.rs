@@ -17,6 +17,9 @@ use crate::export::ExportRequest;
 use crate::export::Progress;
 use crate::export::amiga;
 use crate::export::audio;
+use crate::export::level::add_into;
+use crate::export::level::largest_peak;
+use crate::export::level::required_gain;
 use crate::export::publish;
 use crate::export::readme;
 use crate::export::record::StagedFiles;
@@ -145,35 +148,6 @@ fn preflight(
     })
 }
 
-/// Returns the largest common gain that brings `peak` inside `highest`.
-///
-/// The caller reaches this call only when `peak` is above the range, so `peak`
-/// is finite and positive.
-fn required_gain(highest: f32, peak: f32) -> f32 {
-    if peak <= 0.0 {
-        return highest;
-    }
-    highest / peak
-}
-
-/// Returns the larger of `current` and the peak of `samples`.
-///
-/// A sample that is not finite fails the check. `f32::max` ignores a NaN
-/// operand, so the loop would otherwise read a broken render as a quiet one.
-fn largest_peak(current: f32, samples: &[f32]) -> Result<f32, ExportError> {
-    let mut peak = current;
-    for (index, sample) in samples.iter().copied().enumerate() {
-        if !sample.is_finite() {
-            return Err(ExportError::from(crate::encode::EncodeError::NotFinite {
-                index,
-                value: sample,
-            }));
-        }
-        peak = peak.max(sample.abs());
-    }
-    Ok(peak)
-}
-
 /// Writes every audio file of the export.
 fn write_files<W: Write>(
     plan: &ExportPlan,
@@ -268,17 +242,6 @@ fn write_mix(
     audio::write_buffer(&sum, timeline, plan.layout(), plan.encoding(), &path)?;
     files.add_mix(path);
     Ok(())
-}
-
-/// Adds `samples` into `sum`, and seeds `sum` from the first buffer.
-fn add_into(sum: &mut Vec<f32>, samples: &[f32]) {
-    if sum.is_empty() {
-        *sum = samples.to_vec();
-        return;
-    }
-    for (total, sample) in sum.iter_mut().zip(samples) {
-        *total += sample;
-    }
 }
 
 /// Returns the stem entry of one channel.

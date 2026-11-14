@@ -11,6 +11,7 @@ pub mod audio;
 pub mod cancel;
 pub mod error;
 pub mod hash;
+pub mod level;
 pub mod plan;
 pub mod progress;
 pub mod publish;

@@ -156,7 +156,15 @@ impl Noise {
 mod tests {
     use super::Dither;
     use super::Noise;
+    use super::to_integers;
+    use crate::encode::Encoding;
     use crate::encode::Format;
+    use proptest::collection::vec;
+    use proptest::prelude::prop_assert;
+    use proptest::prelude::prop_assert_eq;
+    use proptest::proptest;
+    use proptest::test_runner::Config;
+    use proptest::test_runner::TestCaseError;
 
     #[test]
     fn no_dither_gives_no_noise() {
@@ -191,5 +199,43 @@ mod tests {
             Dither::Tpdf.tolerance(Format::FlacI16),
             3.0 * Format::FlacI16.tolerance()
         );
+    }
+
+    proptest! {
+        #![proptest_config(Config::with_cases(64))]
+
+        /// Every sample in the unit range converts, and every integer that
+        /// comes back sits inside the format range and within the tolerance.
+        #[test]
+        fn a_sample_in_the_unit_range_stays_inside_the_format(
+            samples in vec(-1.0_f32..=1.0, 0..64),
+            format in proptest::sample::select(
+                &[Format::FlacI16, Format::FlacI24][..],
+            ),
+            dither in proptest::sample::select(&[Dither::None, Dither::Tpdf][..]),
+        ) {
+            let encoding = Encoding::new(format, 48_000).with_dither(dither);
+            let integers = to_integers(&encoding, &samples)
+                .map_err(|error| TestCaseError::fail(error.to_string()))?;
+            prop_assert_eq!(integers.len(), samples.len());
+            let highest = format.scale().round();
+            let lowest = -(highest + 1.0);
+            for (index, (integer, sample)) in integers.iter().zip(&samples).enumerate() {
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "the integer is a 24-bit whole number"
+                )]
+                let value = *integer as f32;
+                prop_assert!(
+                    value >= lowest && value <= highest,
+                    "sample {index} gives {value}, which is outside {lowest}..{highest}"
+                );
+                prop_assert!(
+                    (value / format.scale() - sample).abs() <= dither.tolerance(format),
+                    "sample {index} reconstructs as {}, which is outside the tolerance",
+                    value / format.scale()
+                );
+            }
+        }
     }
 }
