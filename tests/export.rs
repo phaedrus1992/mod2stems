@@ -181,6 +181,40 @@ fn a_missing_input_names_the_read_failure() -> Result<(), String> {
 }
 
 #[test]
+fn an_over_range_export_states_a_gain_that_fits() -> Result<(), String> {
+    // The required gain is the largest factor that still fits the format. The
+    // old message multiplied the current gain by that factor, so a caller who
+    // applied it landed in the same failure.
+    let workspace = temporary("export-over-range")?;
+    let input = write_fixture(&workspace)?;
+    let destination = workspace.join("stems");
+    let mut request = ExportRequest::new(input, destination.clone());
+    request.format = Format::FlacI16;
+    request.gain = 8.0;
+    let Err(message) = export(&request) else {
+        return Err("a gain that overflows 16-bit must fail".to_owned());
+    };
+    require(!destination.exists(), "a failed export publishes nothing")?;
+    let marker = "Set --gain to ";
+    let start = message
+        .find(marker)
+        .ok_or_else(|| format!("the error states no gain, got {message}"))?
+        + marker.len();
+    let rest = message.get(start..).unwrap_or_default();
+    let end = rest.find(' ').unwrap_or(rest.len());
+    let required: f32 = rest
+        .get(..end)
+        .ok_or("the error states no gain")?
+        .parse()
+        .map_err(|_| format!("the error states no gain, got {message}"))?;
+    require(
+        required < 8.0_f32,
+        &format!("the stated gain of {required} must fit the format"),
+    )?;
+    Ok(())
+}
+
+#[test]
 fn an_existing_destination_is_refused() -> Result<(), String> {
     let workspace = temporary("export-exists")?;
     let input = write_fixture(&workspace)?;

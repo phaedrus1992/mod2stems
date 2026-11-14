@@ -60,7 +60,7 @@ fn execute<W: Write>(
     let mut renders = render_all(plan, cancel, progress, staging)?;
     amiga::check(plan, &renders.reference)?;
     let timeline = Timeline::from_frame_count(renders.frames)?;
-    preflight(plan, &renders, timeline)?;
+    preflight(plan, request, &renders, timeline)?;
     let files = write_files(plan, request, &mut renders, timeline, progress, staging)?;
     let details = plan.details(
         renders.frames,
@@ -82,34 +82,72 @@ fn execute<W: Write>(
 
 /// Checks every output against the integer range before any file is written.
 ///
-/// The reference render is measured from memory. Each channel render is
-/// measured from its staged float file, so the check covers the whole set
-/// without holding it in memory.
-fn preflight(plan: &ExportPlan, renders: &Renders, timeline: Timeline) -> Result<(), ExportError> {
+/// The check measures only the files that the export writes. Each channel
+/// render is read from its staged float file, so the check covers the whole set
+/// without holding it in memory. The mix is measured as the sum that the export
+/// writes, because a sum can exceed every stem that it holds.
+fn preflight(
+    plan: &ExportPlan,
+    request: &ExportRequest,
+    renders: &Renders,
+    timeline: Timeline,
+) -> Result<(), ExportError> {
     let mut peak = 0.0_f32;
+    let mut sum: Vec<f32> = Vec::new();
     for path in &renders.channels {
         let samples = audio::layout_samples(path, timeline, plan.layout())?;
-        peak = largest_peak(peak, &samples);
+        peak = largest_peak(peak, &samples)?;
+        if request.write_mix {
+            add_into(&mut sum, &samples);
+        }
     }
-    let reference = audio::layout_buffer(&renders.reference, timeline, plan.layout())?;
-    peak = largest_peak(peak, &reference);
+    if request.write_mix {
+        peak = largest_peak(peak, &sum)?;
+    }
+    if request.write_reference_mix {
+        let reference = audio::layout_buffer(&renders.reference, timeline, plan.layout())?;
+        peak = largest_peak(peak, &reference)?;
+    }
     if plan.gain_fits(peak, plan.encoding().gain()) {
         return Ok(());
     }
+    let gain = plan.encoding().gain().value();
     Err(ExportError::OverRange {
         peak,
         format: plan.format().to_string(),
         highest: plan.format().peak(),
-        gain: plan.encoding().gain().value(),
-        required: plan.encoding().gain().value() * plan.format().peak() / peak,
+        gain,
+        required: required_gain(plan.format().peak(), peak),
     })
 }
 
+/// Returns the largest common gain that brings `peak` inside `highest`.
+///
+/// The caller reaches this call only when `peak` is above the range, so `peak`
+/// is finite and positive.
+fn required_gain(highest: f32, peak: f32) -> f32 {
+    if peak <= 0.0 {
+        return highest;
+    }
+    highest / peak
+}
+
 /// Returns the larger of `current` and the peak of `samples`.
-fn largest_peak(current: f32, samples: &[f32]) -> f32 {
-    samples
-        .iter()
-        .fold(current, |peak, sample| peak.max(sample.abs()))
+///
+/// A sample that is not finite fails the check. `f32::max` ignores a NaN
+/// operand, so the loop would otherwise read a broken render as a quiet one.
+fn largest_peak(current: f32, samples: &[f32]) -> Result<f32, ExportError> {
+    let mut peak = current;
+    for (index, sample) in samples.iter().copied().enumerate() {
+        if !sample.is_finite() {
+            return Err(ExportError::from(crate::encode::EncodeError::NotFinite {
+                index,
+                value: sample,
+            }));
+        }
+        peak = peak.max(sample.abs());
+    }
+    Ok(peak)
 }
 
 /// Writes every audio file of the export.

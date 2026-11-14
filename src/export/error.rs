@@ -213,9 +213,9 @@ impl fmt::Display for ExportError {
                 required,
             } => write!(
                 formatter,
-                "Cannot export as {format}: a sample reaches {peak} after the common gain of \
-                 {gain}, and {format} holds at most {highest}. Set --gain to {required} or less, \
-                 or export as float WAV."
+                "Cannot export as {format}: a sample reaches {peak} before the common gain, and \
+                 the gain of {gain} would scale it past {highest}, which is the most that \
+                 {format} holds. Set --gain to {required} or less, or export as float WAV."
             ),
             Self::Cancelled(report) => write!(formatter, "The export stopped: {report}"),
             Self::Failed { cause, staging } => {
