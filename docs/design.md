@@ -444,8 +444,8 @@ publish a partial set as complete; report any retained staging files explicitly.
 | `openmpt-ext` crate | Safe stock-API ownership, capability checks, configuration, metadata, channel mute and channel volume, instrument mute, order/row trace, pattern cell reads, and float reads. |
 | `profile.rs` | Resolve rendering profiles and validate supported combinations. |
 | `stems.rs` | Bounded channel and pair render orchestration, subsong/end policy, timeline alignment, downmixing, and separate set summation. |
-| `pairs.rs` | Pair identities, discovery from the row trace, strategy selection, and completeness checks. |
-| `silence.rs` | Format adapters that write silent sample data into a private copy of the module bytes. |
+| `pairs.rs` | Pair identities, discovery from the row trace, strategy selection, and completeness checks. Not built yet; see #12. |
+| `silence.rs` | Format adapters that write silent sample data into a private copy of the module bytes. Not built yet; see #13. |
 | `render.rs` | Float WAV/FLAC encoding, level checks, explicit common gain, and final quantization. |
 | `manifest.rs` | Provenance, channel/pair mapping, export-set membership, diagnostics, and validation results. |
 | `main.rs` | CLI validation, progress, cancellation, staging, and final publication. |
