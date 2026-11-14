@@ -228,6 +228,55 @@ fn a_cancelled_export_publishes_nothing() -> Result<(), String> {
     )
 }
 
+/// The sink that fails on the line that names a `needle`.
+///
+/// The publish line is the last one, so the sink must accept every earlier
+/// line and fail only on the one that proves the export reached the rename.
+struct FailOn {
+    needle: &'static str,
+}
+
+impl std::io::Write for FailOn {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(buffer);
+        if text.contains(self.needle) {
+            return Err(std::io::Error::other("the sink stopped"));
+        }
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_sink_failure_after_the_rename_says_the_export_published() -> Result<(), String> {
+    // The rename is the last step, so the export is complete. A message that
+    // says nothing published sends the caller hunting for a partial directory
+    // that does not exist.
+    let workspace = temporary("export-publish-sink")?;
+    let input = write_fixture(&workspace)?;
+    let destination = workspace.join("stems");
+    let request = ExportRequest::new(input, destination.clone());
+    let cancel = Cancel::new();
+    let mut progress = Progress::new(FailOn {
+        needle: "published the export",
+    });
+    let Err(error) = run(&request, &cancel, &mut progress) else {
+        return Err("a failed publish report must fail the run".to_owned());
+    };
+    let message = error.to_string();
+    require(
+        message.contains("The export published"),
+        &format!("the error says the export published, got {message}"),
+    )?;
+    require(
+        destination.join(MANIFEST_FILE).is_file(),
+        "the export publishes before the sink fails",
+    )
+}
+
 #[test]
 fn pair_stems_are_refused_with_the_issue_numbers() -> Result<(), String> {
     let workspace = temporary("export-pairs")?;

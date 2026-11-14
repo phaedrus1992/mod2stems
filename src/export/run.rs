@@ -69,7 +69,7 @@ fn execute<W: Write>(
     write_readme(plan, staging)?;
     remove_scratch(staging)?;
     publish::publish(staging, plan.destination())?;
-    report(progress, Stage::Publish)?;
+    report_published(progress)?;
     Ok(ExportReport {
         destination: plan.destination().to_path_buf(),
         renders: plan.render_count(),
@@ -270,18 +270,25 @@ fn report_begin<W: Write>(
 ) -> Result<(), ExportError> {
     progress
         .begin(renders, files)
-        .map_err(|error| ExportError::Progress {
-            detail: error.to_string(),
-        })
+        .map_err(|error| ExportError::progress(&error, false))
 }
 
-/// Reports one stage, and converts a sink failure into an export error.
+/// Reports one stage that runs before the rename, and converts a sink failure
+/// into an export error.
 fn report<W: Write>(progress: &mut Progress<W>, stage: Stage) -> Result<(), ExportError> {
     progress
         .stage(stage)
-        .map_err(|error| ExportError::Progress {
-            detail: error.to_string(),
-        })
+        .map_err(|error| ExportError::progress(&error, false))
+}
+
+/// Reports the publish stage, and converts a sink failure into an export error.
+///
+/// The rename already happened, so the failure must not claim that nothing
+/// published.
+fn report_published<W: Write>(progress: &mut Progress<W>) -> Result<(), ExportError> {
+    progress
+        .stage(Stage::Publish)
+        .map_err(|error| ExportError::progress(&error, true))
 }
 
 /// Returns the encoding of one export.

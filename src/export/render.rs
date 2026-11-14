@@ -123,7 +123,5 @@ fn check_cancel(cancel: &Cancel, staging: &Path) -> Result<(), ExportError> {
 fn report<W: Write>(progress: &mut Progress<W>, stage: Stage) -> Result<(), ExportError> {
     progress
         .stage(stage)
-        .map_err(|error| ExportError::Progress {
-            detail: error.to_string(),
-        })
+        .map_err(|error| ExportError::progress(&error, false))
 }

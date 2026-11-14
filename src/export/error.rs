@@ -96,6 +96,12 @@ pub enum ExportError {
     Progress {
         /// The reason from the sink.
         detail: String,
+        /// Whether the export published before the failure.
+        ///
+        /// The rename is the last step, so a sink failure after it leaves a
+        /// complete export. The message must say so, because a caller reads
+        /// the failure as a stopped export.
+        published: bool,
     },
     /// A file of the export cannot be written or read.
     Io {
@@ -112,6 +118,16 @@ impl ExportError {
         Self::Io {
             path: path.to_path_buf(),
             detail: error.to_string(),
+        }
+    }
+
+    /// Returns the error of a sink that cannot report.
+    ///
+    /// `published` says whether the export reached its rename.
+    pub(crate) fn progress(error: &std::io::Error, published: bool) -> Self {
+        Self::Progress {
+            detail: error.to_string(),
+            published,
         }
     }
 
@@ -207,10 +223,21 @@ impl fmt::Display for ExportError {
             Self::Stem(error) => write!(formatter, "Cannot render the stems: {error}"),
             Self::Encode(error) => write!(formatter, "Cannot encode the stems: {error}"),
             Self::Manifest(error) => write!(formatter, "{error}"),
-            Self::Progress { detail } => write!(
+            Self::Progress {
+                detail,
+                published: false,
+            } => write!(
                 formatter,
                 "Cannot report the export progress: {detail}. The export stopped before it \
                  published anything."
+            ),
+            Self::Progress {
+                detail,
+                published: true,
+            } => write!(
+                formatter,
+                "Cannot report the export progress: {detail}. The export published, so the \
+                 directory is complete. Check the destination before you run the export again."
             ),
             Self::Io { path, detail } => write!(
                 formatter,
