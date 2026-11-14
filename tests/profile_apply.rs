@@ -28,6 +28,8 @@ use openmpt_ext::RenderParam;
 
 #[path = "support/fields.rs"]
 mod fields;
+#[path = "support/header.rs"]
+mod header;
 #[path = "support/it.rs"]
 mod it;
 #[path = "support/mt2.rs"]
@@ -246,7 +248,7 @@ fn a_rate_outside_the_renderer_range_fails_before_the_read() -> Result<(), Strin
     // outside each end, so the check covers the boundary and not just far away.
     for rate in [0, 7_999, 192_001, 384_000] {
         let mut module = load("test.mod")?;
-        match read_pass(&mut module, rate, None, 3600) {
+        match read_pass(&mut module, rate, None, DEFAULT_MAX_RENDER_SECONDS) {
             Err(ProfileError::RateOutOfRange {
                 rate: found,
                 lowest: 8000,
@@ -272,6 +274,23 @@ fn a_render_limit_stops_a_long_read() -> Result<(), String> {
         )),
         Err(ProfileError::TooLong { limit_seconds: 0 }) => Ok(()),
         Err(error) => Err(format!("the error is {error:?}, expected TooLong")),
+    }
+}
+
+#[test]
+fn a_limit_too_large_for_a_frame_count_fails() -> Result<(), String> {
+    // The cap is a sample count. A limit whose count does not fit in a usize
+    // would saturate to a count that never fires, so the guard must reject it
+    // instead of widening the allocation bound.
+    let mut module = load("test.mod")?;
+    match read_pass(&mut module, 48_000, None, u64::MAX) {
+        Err(ProfileError::LimitOutOfRange {
+            limit_seconds,
+            rate: 48_000,
+        }) if limit_seconds == u64::MAX => Ok(()),
+        other => Err(format!(
+            "the limit u64::MAX gives {other:?}, expected LimitOutOfRange"
+        )),
     }
 }
 

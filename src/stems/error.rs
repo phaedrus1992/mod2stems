@@ -90,6 +90,42 @@ pub enum StemError {
         /// The number of channels in the module.
         channels: i32,
     },
+    /// The module did not keep a value that the playback policy set.
+    ///
+    /// The policy reads each value back, because a build can accept a setter
+    /// and keep another value. A mismatch means the render would not play what
+    /// the policy names (`docs/design.md` §4.2).
+    PolicyMismatch {
+        /// The policy setting that did not take effect.
+        setting: &'static str,
+        /// The value that the policy set.
+        wanted: i32,
+        /// The value that the module reads back.
+        actual: i32,
+    },
+    /// No completed render fixes the common timeline.
+    ///
+    /// An export with no render has no length to align to, so every stem of it
+    /// would be empty (`docs/design.md` §4.2).
+    EmptyTimeline,
+    /// A render holds a half frame.
+    ///
+    /// The samples are interleaved stereo, so an odd count cannot name a whole
+    /// frame and the timeline or the downmix would split a pair.
+    NotStereo {
+        /// The number of samples that the render holds.
+        samples: usize,
+    },
+    /// A render is longer than the common timeline.
+    ///
+    /// Padding cannot shorten a render, and a shorter common end would cut
+    /// audio that the library played (`docs/design.md` §4.2).
+    RenderPastTimeline {
+        /// The number of frames in the render.
+        frames: usize,
+        /// The number of frames in the common timeline.
+        timeline: usize,
+    },
     /// The render or one of its library calls failed.
     Profile(ProfileError),
 }
@@ -153,6 +189,26 @@ impl fmt::Display for StemError {
             Self::ChannelOutOfRange { channel, channels } => write!(
                 out,
                 "channel {channel} is not a channel of this module, which has {channels}. Choose a channel in 0..{channels}"
+            ),
+            Self::PolicyMismatch {
+                setting,
+                wanted,
+                actual,
+            } => write!(
+                out,
+                "the playback policy sets {setting} to {wanted} and the module reads back {actual}. The policy did not take effect on this module. Use a libopenmpt build that offers the value, and check that the module holds the subsong"
+            ),
+            Self::EmptyTimeline => write!(
+                out,
+                "the export has no completed render, so no common end aligns the tracks. Render the module once before a stem, and check that the module plays at least one row"
+            ),
+            Self::NotStereo { samples } => write!(
+                out,
+                "a render holds {samples} samples, which is not a whole number of stereo frames. The renderer writes interleaved stereo, so an odd count means a truncated read. Render the module again with an even sample count"
+            ),
+            Self::RenderPastTimeline { frames, timeline } => write!(
+                out,
+                "a render holds {frames} frames and the common timeline holds {timeline}. The common end is the longest completed render, so a longer render means the timeline was built from another set of renders. Build the timeline from every render that the export writes"
             ),
             Self::Profile(error) => write!(out, "{error}"),
         }

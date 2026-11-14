@@ -56,13 +56,22 @@ pub fn build_with_magic(spec: &ModSpec, magic: [u8; 4]) -> Vec<u8> {
 }
 
 /// Writes one 30-byte sample header, or a zero slot when the sample is absent.
+///
+/// The header holds a word count, so an odd byte count has no exact value. The
+/// builder rejects it here, because a truncated count would make the loader
+/// read fewer bytes than the file holds.
 fn write_sample_header(out: &mut Vec<u8>, sample: Option<&SampleSpec>) {
     let Some(sample) = sample else {
         out.extend([0; SAMPLE_HEADER_LEN]);
         return;
     };
+    let bytes = sample.data.len();
+    assert!(
+        bytes.is_multiple_of(2),
+        "sample data holds {bytes} bytes, and a MOD sample holds whole words"
+    );
     out.extend(sample.name);
-    out.extend(words(sample.data.len() / 2).to_be_bytes());
+    out.extend(words(bytes / 2).to_be_bytes());
     out.push(0);
     out.push(sample.volume);
     out.extend(sample.loop_start.to_be_bytes());

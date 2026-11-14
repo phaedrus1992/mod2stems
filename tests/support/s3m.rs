@@ -18,8 +18,8 @@
 //! tables, the sample header, the pattern, and the sample data. Every
 //! parapointer names a 16-byte paragraph.
 
-use crate::fields::u16_field;
-use crate::fields::u32_field;
+use crate::header::u16_field;
+use crate::header::u32_field;
 
 /// Byte length of the S3M file header (`S3MTools.h`).
 const HEADER_LEN: usize = 96;

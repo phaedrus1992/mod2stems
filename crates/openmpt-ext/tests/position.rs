@@ -51,11 +51,11 @@ fn select_subsong_zero_is_accepted() -> Result<(), String> {
     module
         .select_subsong(0)
         .map_err(|error| error.to_string())?;
-    if module.selected_subsong() != 0 {
-        return Err(format!(
-            "the selected subsong is {}, expected 0",
-            module.selected_subsong()
-        ));
+    let selected = module
+        .selected_subsong()
+        .map_err(|error| error.to_string())?;
+    if selected != 0 {
+        return Err(format!("the selected subsong is {selected}, expected 0"));
     }
     Ok(())
 }
@@ -198,6 +198,34 @@ fn repeat_count_accepts_zero_and_positive() -> Result<(), String> {
         module
             .set_repeat_count(count)
             .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+#[test]
+fn repeat_count_reads_back_the_value_that_it_set() -> Result<(), String> {
+    // A render that sets one pass must prove that the library kept it. A build
+    // that ignored the setter would repeat the song with no error.
+    let mut module = load()?;
+    module
+        .set_repeat_count(0)
+        .map_err(|error| error.to_string())?;
+    let count = module.repeat_count().map_err(|error| error.to_string())?;
+    if count != 0 {
+        return Err(format!("the repeat count reads {count}, expected 0"));
+    }
+    Ok(())
+}
+
+#[test]
+fn the_default_repeat_count_plays_one_pass() -> Result<(), String> {
+    // `docs/design.md` §4.2 renders one pass of the order list. The library
+    // default is 0, and this check pins that the wrapper reads it as 0 rather
+    // than as the "repeat forever" value of -1.
+    let mut module = load()?;
+    let count = module.repeat_count().map_err(|error| error.to_string())?;
+    if count != 0 {
+        return Err(format!("the default repeat count is {count}, expected 0"));
     }
     Ok(())
 }

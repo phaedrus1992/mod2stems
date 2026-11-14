@@ -11,6 +11,7 @@ use mod2stems::ProfileRequest;
 use mod2stems::StemError;
 use mod2stems::profile::apply::METADATA_TYPE;
 use mod2stems::profile::apply::apply_profile;
+use mod2stems::stems::PlaybackPolicy;
 use mod2stems::stems::Position;
 use mod2stems::stems::RowTrace;
 use mod2stems::stems::Silencing;
@@ -22,6 +23,8 @@ use openmpt_ext::Module;
 
 #[path = "support/fields.rs"]
 mod fields;
+#[path = "support/header.rs"]
+mod header;
 #[path = "support/s3m.rs"]
 mod s3m;
 
@@ -38,6 +41,11 @@ fn default_config() -> Result<ProfileConfig, String> {
     ProfileRequest::default()
         .resolve()
         .map_err(|error| error.to_string())
+}
+
+/// Returns the default playback policy.
+fn policy() -> PlaybackPolicy {
+    PlaybackPolicy::default_policy()
 }
 
 /// Returns the silencing method for a type that must select one.
@@ -197,7 +205,8 @@ fn channel_mute_drops_the_flow_of_a_s3m_module() -> Result<(), String> {
     // pattern break on channel 1 never runs.
     let config = default_config()?;
     let mut plain = load_muted_flow()?;
-    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut plain, &config, &policy()).map_err(|error| error.to_string())?;
     let mut muted = load_muted_flow()?;
     apply_profile(&config, &mut muted).map_err(|error| error.to_string())?;
     for channel in 1..muted.num_channels() {
@@ -205,8 +214,8 @@ fn channel_mute_drops_the_flow_of_a_s3m_module() -> Result<(), String> {
             .set_channel_mute(channel, true)
             .map_err(|error| error.to_string())?;
     }
-    let render =
-        read_guarded(&mut muted, config.rate(), 3600).map_err(|error| error.to_string())?;
+    let render = read_guarded(&mut muted, config.rate(), policy().max_seconds())
+        .map_err(|error| error.to_string())?;
     match render.trace.first_divergence(reference.trace()) {
         Some(_) => Ok(()),
         None => Err(
@@ -220,10 +229,11 @@ fn channel_mute_drops_the_flow_of_a_s3m_module() -> Result<(), String> {
 fn zero_volume_keeps_the_flow_of_a_s3m_module() -> Result<(), String> {
     let config = default_config()?;
     let mut plain = load_muted_flow()?;
-    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut plain, &config, &policy()).map_err(|error| error.to_string())?;
     let mut isolated = load_muted_flow()?;
-    let export =
-        export_channel(&mut isolated, &config, 0, &reference).map_err(|error| error.to_string())?;
+    let export = export_channel(&mut isolated, &config, &policy(), 0, &reference)
+        .map_err(|error| error.to_string())?;
     if &export.trace != reference.trace() {
         return Err(format!(
             "the isolated render of the fixture diverges at {:?}",
@@ -239,9 +249,10 @@ fn a_reference_from_another_module_fails() -> Result<(), String> {
     // check must refuse it before it silences a channel.
     let config = default_config()?;
     let mut other = load("test.mod")?;
-    let reference = reference_render(&mut other, &config).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut other, &config, &policy()).map_err(|error| error.to_string())?;
     let mut isolated = load_muted_flow()?;
-    match export_channel(&mut isolated, &config, 0, &reference) {
+    match export_channel(&mut isolated, &config, &policy(), 0, &reference) {
         Err(StemError::ReferenceMismatch {
             module_type,
             reference_type,
@@ -265,9 +276,10 @@ fn a_reference_from_another_amiga_model_fails() -> Result<(), String> {
         .resolve()
         .map_err(|error| error.to_string())?;
     let mut module = load("test.mod")?;
-    let reference = reference_render(&mut module, &a500).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut module, &a500, &policy()).map_err(|error| error.to_string())?;
     let mut isolated = load("test.mod")?;
-    match export_channel(&mut isolated, &a1200, 0, &reference) {
+    match export_channel(&mut isolated, &a1200, &policy(), 0, &reference) {
         Err(StemError::ReferenceMismatch {
             profile,
             reference_profile,
@@ -297,7 +309,8 @@ fn zero_volume_stems_add_up_to_the_mix() -> Result<(), String> {
 fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
     let config = default_config()?;
     let mut plain = load(name)?;
-    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut plain, &config, &policy()).map_err(|error| error.to_string())?;
     let channels = plain.num_channels();
     let mut sum = vec![0.0_f32; reference.samples().len()];
     for channel in 0..channels {
@@ -305,7 +318,7 @@ fn stems_add_up_to_the_mix(name: &str) -> Result<(), String> {
         // another. `export_channel` compares the second instance's count with
         // the reference, so a differing count fails there.
         let mut isolated = load(name)?;
-        let exported = export_channel(&mut isolated, &config, channel, &reference)
+        let exported = export_channel(&mut isolated, &config, &policy(), channel, &reference)
             .map_err(|error| format!("{name} channel {channel}: {error}"))?;
         for (part, stem) in sum.iter_mut().zip(exported.samples.iter()) {
             *part += stem;
@@ -334,8 +347,9 @@ fn a_channel_outside_the_module_fails() -> Result<(), String> {
     let mut module = load("test.mod")?;
     let channels = module.num_channels();
     let mut plain = load("test.mod")?;
-    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
-    match export_channel(&mut module, &config, channels, &reference) {
+    let reference =
+        reference_render(&mut plain, &config, &policy()).map_err(|error| error.to_string())?;
+    match export_channel(&mut module, &config, &policy(), channels, &reference) {
         Err(StemError::ChannelOutOfRange {
             channel,
             channels: found,
@@ -353,9 +367,10 @@ fn a_silenced_channel_that_raises_its_volume_mid_song_fails() -> Result<(), Stri
     // The export must catch the raise while the song runs.
     let config = default_config()?;
     let mut plain = load_bytes(&s3m::volume_swing_s3m())?;
-    let reference = reference_render(&mut plain, &config).map_err(|error| error.to_string())?;
+    let reference =
+        reference_render(&mut plain, &config, &policy()).map_err(|error| error.to_string())?;
     let mut isolated = load_bytes(&s3m::volume_swing_s3m())?;
-    match export_channel(&mut isolated, &config, 0, &reference) {
+    match export_channel(&mut isolated, &config, &policy(), 0, &reference) {
         Err(StemError::VolumeDrifted {
             exported: 0,
             silenced: 1,
@@ -378,9 +393,9 @@ fn a_reference_from_another_profile_fails() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let mut module = load_muted_flow()?;
     let reference =
-        reference_render(&mut module, &compatible).map_err(|error| error.to_string())?;
+        reference_render(&mut module, &compatible, &policy()).map_err(|error| error.to_string())?;
     let mut isolated = load_muted_flow()?;
-    match export_channel(&mut isolated, &clean, 0, &reference) {
+    match export_channel(&mut isolated, &clean, &policy(), 0, &reference) {
         Err(StemError::ReferenceMismatch {
             profile,
             reference_profile,

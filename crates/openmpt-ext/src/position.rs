@@ -24,10 +24,18 @@ impl Module {
     }
 
     /// Returns the selected subsong.
-    #[must_use]
-    pub fn selected_subsong(&self) -> i32 {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when libopenmpt rejects the read. The library returns
+    /// `-1` on a failure, and `-1` is also its "all subsongs" value, so a
+    /// failure and a data value would read the same without this check.
+    pub fn selected_subsong(&mut self) -> Result<i32> {
+        self.clear_error();
         // SAFETY: the handle is live. The call only reads a counter.
-        unsafe { openmpt_ext_sys::openmpt_module_get_selected_subsong(self.core()) }
+        let index = unsafe { openmpt_ext_sys::openmpt_module_get_selected_subsong(self.core()) };
+        self.check_last_error("subsong read", "selected subsong")?;
+        Ok(index)
     }
 
     /// Sets the number of times that the order list repeats.
@@ -45,6 +53,25 @@ impl Module {
         // SAFETY: the handle is live. The count is a plain value.
         let ok = unsafe { openmpt_ext_sys::openmpt_module_set_repeat_count(self.core(), count) };
         self.check_ok("set repeat count", &format!("count {count}"), ok)
+    }
+
+    /// Returns the number of times that the order list repeats.
+    ///
+    /// The library reads `-1` as "repeat forever", `0` as one pass, and a
+    /// positive count as that many extra passes. This crate sets 0, so a caller
+    /// can read the value back and prove that the library kept it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when libopenmpt rejects the read. The library returns
+    /// `0` on a failure, and `0` is also the value that this crate wants, so a
+    /// failure would pass the read-back check without this error path.
+    pub fn repeat_count(&mut self) -> Result<i32> {
+        self.clear_error();
+        // SAFETY: the handle is live. The call only reads a counter.
+        let count = unsafe { openmpt_ext_sys::openmpt_module_get_repeat_count(self.core()) };
+        self.check_last_error("repeat count read", "repeat count")?;
+        Ok(count)
     }
 
     /// Returns the current order.

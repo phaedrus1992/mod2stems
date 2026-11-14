@@ -15,7 +15,7 @@
 //! The vendor tree is a git submodule, so a fixture written there would not
 //! survive an update. The builder writes the bytes in the test process.
 
-use crate::fields::u32_field;
+use crate::header::u32_field;
 
 /// Byte length of the MT2 file header (`MT2FileHeader`).
 const HEADER_LEN: usize = 126;

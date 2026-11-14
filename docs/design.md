@@ -208,6 +208,8 @@ Resolve subsong selection and playback policy before launching render workers.
 The proposed default is the first subsong; `--subsong` selects another explicitly.
 Exporting all subsongs into separate sets can follow later. Do not inherit the
 library's unspecified default selection.
+`PlaybackPolicy` is the resolved value (`src/stems/policy.rs`). It names the subsong, the repeat count, and the duration limit, and `apply` sets both library values and reads them back.
+The reference render stores the policy, so a stem that plays another subsong fails rather than comparing two songs.
 
 The initial export plays the selected subsong without additional whole-song
 repetitions, while honoring its internal pattern flow.
@@ -231,6 +233,13 @@ Apply a configured maximum render duration as a guard against pathological input
 Reaching it fails the export as incomplete rather than reporting a truncated song
 as success. `get_duration_seconds` is an estimate for progress reporting, not the
 sole stopping condition or a reliable allocation bound.
+The limit is a field of `PlaybackPolicy`, not a constant at each call site.
+
+`Timeline` is the common end (`src/stems/timeline.rs`).
+It is built from the completed renders, the unmuted render included.
+`pad` zero-pads a shorter render at the tail and refuses a render past the timeline.
+`padding_for` reports the frames that alignment adds, so a caller sees a timing difference before it pads.
+`downmix` in `src/stems/layout.rs` applies the mono mean, and it is the only mono conversion.
 
 ### 4.3 Stereo and mono
 
