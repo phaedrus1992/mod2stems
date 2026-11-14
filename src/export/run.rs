@@ -66,7 +66,7 @@ fn execute<W: Write>(
     let files = write_files(plan, request, &mut renders, timeline, progress, staging)?;
     let details = plan.details(renders.frames, &files)?;
     files.write_manifest(staging, details)?;
-    write_readme(plan, staging)?;
+    write_readme(plan, renders.frames, staging)?;
     remove_scratch(staging)?;
     publish::publish(staging, plan.destination())?;
     report_published(progress)?;
@@ -234,9 +234,10 @@ fn remove_scratch(staging: &Path) -> Result<(), ExportError> {
 }
 
 /// Writes the README that labels the export.
-fn write_readme(plan: &ExportPlan, staging: &Path) -> Result<(), ExportError> {
+fn write_readme(plan: &ExportPlan, frames: usize, staging: &Path) -> Result<(), ExportError> {
     let path = staging.join(README_FILE);
-    std::fs::write(&path, readme::text(plan)).map_err(|error| ExportError::io(&path, &error))
+    let text = readme::text(plan, frames);
+    std::fs::write(&path, text).map_err(|error| ExportError::io(&path, &error))
 }
 
 /// Returns the file name of one mix.

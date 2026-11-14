@@ -10,9 +10,12 @@ use crate::export::ExportPlan;
 
 /// Returns the text of the README of one export.
 ///
+/// `frames` is the frame count that every file of the export spans, in the
+/// output layout.
+///
 /// The writes to a `String` cannot fail, so the result of each one is ignored.
 #[must_use]
-pub fn text(plan: &ExportPlan) -> String {
+pub fn text(plan: &ExportPlan, frames: usize) -> String {
     let mut text = String::new();
     text.push_str("mod2stems export\n\n");
     let _ = writeln!(
@@ -23,7 +26,7 @@ pub fn text(plan: &ExportPlan) -> String {
     );
     let _ = writeln!(
         text,
-        "Every file spans {} frames. The common gain is {}.\n",
+        "The files are {}. Every file spans {frames} frames. The common gain is {}.\n",
         plan.layout().as_str(),
         plan.encoding().gain().value()
     );

@@ -1,10 +1,9 @@
 //! Tests the staged export run.
 //!
-//! The checks cover the published set, the manifest that names it, the two
-//! mixes, the mono layout, the collision rule, and cancellation. The synthetic
-//! module plays two short orders, so a whole export runs in a test.
-
-use std::path::Path;
+//! The checks cover the published set, the manifest that names it, the mono
+//! layout, the collision rule, and cancellation. The mix checks live in
+//! `tests/mix.rs`. The synthetic module plays two short orders, so a whole
+//! export runs in a test.
 
 use mod2stems::encode::Format;
 use mod2stems::export::Cancel;
@@ -27,29 +26,6 @@ use fixture::require_eq;
 use fixture::require_val;
 use fixture::temporary;
 use fixture::write_fixture;
-
-/// Reads one float WAV file, as interleaved samples.
-fn read_wav(path: &Path) -> Result<Vec<f32>, String> {
-    let mut reader = hound::WavReader::open(path).map_err(|error| error.to_string())?;
-    reader
-        .samples::<f32>()
-        .collect::<Result<Vec<f32>, _>>()
-        .map_err(|error| error.to_string())
-}
-
-/// Adds `samples` into `sum`, and seeds `sum` from the first buffer.
-///
-/// The stems and the mix share one layout, so a straight sum is comparable with
-/// the mix.
-fn add_into(sum: &mut Vec<f32>, samples: &[f32]) {
-    if sum.is_empty() {
-        *sum = samples.to_vec();
-        return;
-    }
-    for (total, sample) in sum.iter_mut().zip(samples) {
-        *total += sample;
-    }
-}
 
 #[test]
 fn an_export_publishes_one_file_per_channel_and_a_manifest() -> Result<(), String> {
@@ -294,72 +270,6 @@ fn pair_stems_are_refused_with_the_issue_numbers() -> Result<(), String> {
             require(!destination.exists(), "a failed export publishes nothing")
         }
     }
-}
-
-#[test]
-fn a_mono_mix_sums_to_the_mono_stems() -> Result<(), String> {
-    // A mono stem holds one sample per frame. A mix built by summing the mono
-    // stems and then downmixing that sum reads each pair of frames as one
-    // stereo frame, so the mix spans half the timeline.
-    let workspace = temporary("export-mono-sum")?;
-    let input = write_fixture(&workspace)?;
-    let destination = workspace.join("stems");
-    let mut request = ExportRequest::new(input, destination.clone());
-    request.layout = ChannelLayout::Mono;
-    request.write_mix = true;
-    export(&request)?;
-    let manifest = manifest_of(&destination)?;
-    let mut sum: Vec<f32> = Vec::new();
-    for entry in manifest.stems() {
-        let samples = read_wav(&destination.join(entry.path()))?;
-        add_into(&mut sum, &samples);
-    }
-    let mix_name = manifest
-        .details()
-        .mix
-        .clone()
-        .ok_or("the manifest names no mix")?;
-    let mix = read_wav(&destination.join(mix_name))?;
-    require_val(mix.len(), sum.len(), "the mono mix spans the mono stems")?;
-    for (index, (mix_sample, sum_sample)) in mix.iter().zip(&sum).enumerate() {
-        require(
-            (mix_sample - sum_sample).abs() <= 1e-5,
-            &format!("sample {index} differs: mix {mix_sample}, sum {sum_sample}"),
-        )?;
-    }
-    Ok(())
-}
-
-#[test]
-fn the_mix_sums_to_the_stems_within_the_float_tolerance() -> Result<(), String> {
-    // The mix is the sum of the final float stems, with no normalization. The
-    // check proves the mix is not a separate render and not a scaled copy.
-    let workspace = temporary("export-sum")?;
-    let input = write_fixture(&workspace)?;
-    let destination = workspace.join("stems");
-    let mut request = ExportRequest::new(input, destination.clone());
-    request.write_mix = true;
-    export(&request)?;
-    let manifest = manifest_of(&destination)?;
-    let mut sum: Vec<f32> = Vec::new();
-    for entry in manifest.stems() {
-        let samples = read_wav(&destination.join(entry.path()))?;
-        add_into(&mut sum, &samples);
-    }
-    let mix_name = manifest
-        .details()
-        .mix
-        .clone()
-        .ok_or("the manifest names no mix")?;
-    let mix = read_wav(&destination.join(mix_name))?;
-    require_val(mix.len(), sum.len(), "the mix spans the stems")?;
-    for (index, (mix_sample, sum_sample)) in mix.iter().zip(&sum).enumerate() {
-        require(
-            (mix_sample - sum_sample).abs() <= 1e-5,
-            &format!("sample {index} differs: mix {mix_sample}, sum {sum_sample}"),
-        )?;
-    }
-    Ok(())
 }
 
 #[test]
