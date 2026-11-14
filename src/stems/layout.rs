@@ -21,6 +21,29 @@ pub enum ChannelLayout {
     Mono,
 }
 
+impl ChannelLayout {
+    /// Returns the number of samples that one frame holds.
+    ///
+    /// The encoder needs the count, because a buffer of an odd sample count
+    /// cannot name a whole frame of a stereo layout.
+    #[must_use]
+    pub fn channels(self) -> usize {
+        match self {
+            Self::Stereo => 2,
+            Self::Mono => 1,
+        }
+    }
+
+    /// Returns the CLI spelling of the layout.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stereo => "stereo",
+            Self::Mono => "mono",
+        }
+    }
+}
+
 /// Converts interleaved stereo samples to the named layout.
 ///
 /// # Errors

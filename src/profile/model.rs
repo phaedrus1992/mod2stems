@@ -1,5 +1,7 @@
 //! The Amiga filter models that the `amiga` profile accepts.
 
+use crate::profile::ProfileError;
+
 /// One Amiga filter model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AmigaModel {
@@ -19,6 +21,22 @@ impl AmigaModel {
             Self::A500 => "a500",
             Self::A1200 => "a1200",
             Self::Unfiltered => "unfiltered",
+        }
+    }
+
+    /// Reads a model from its CLI spelling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProfileError::UnknownModel`] when the text names no model.
+    pub fn parse(text: &str) -> Result<Self, ProfileError> {
+        match text {
+            "a500" => Ok(Self::A500),
+            "a1200" => Ok(Self::A1200),
+            "unfiltered" => Ok(Self::Unfiltered),
+            other => Err(ProfileError::UnknownModel {
+                name: other.to_owned(),
+            }),
         }
     }
 }

@@ -49,6 +49,16 @@ impl ProfileRequest {
         self.profile
     }
 
+    /// Returns the request with the named profile.
+    ///
+    /// The request can name any profile a model with. Resolution rejects the
+    /// pair that the library cannot honor.
+    #[must_use]
+    pub fn with_profile(mut self, profile: Profile) -> Self {
+        self.profile = profile;
+        self
+    }
+
     /// Returns the request with the named Amiga model.
     #[must_use]
     pub fn with_amiga_model(mut self, model: AmigaModel) -> Self {

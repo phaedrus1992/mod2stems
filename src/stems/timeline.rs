@@ -53,6 +53,23 @@ impl Timeline {
         }
     }
 
+    /// Builds a timeline from the frame count that the caller measured.
+    ///
+    /// An export that stages its renders in temporary files measures each
+    /// render without holding it in memory. The caller must pass the longest
+    /// frame count of every render that the export writes, the unmuted render
+    /// included, because the timeline is what aligns them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StemError::EmptyTimeline`] when the count is zero.
+    pub fn from_frame_count(frames: usize) -> Result<Self, StemError> {
+        if frames == 0 {
+            return Err(StemError::EmptyTimeline);
+        }
+        Ok(Self { frames })
+    }
+
     /// Returns the length of the common timeline, in frames.
     #[must_use]
     pub fn frames(self) -> usize {

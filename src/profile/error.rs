@@ -16,6 +16,11 @@ pub enum ProfileError {
         /// The text that the caller gave.
         name: String,
     },
+    /// The text names no Amiga model.
+    UnknownModel {
+        /// The text that the caller gave.
+        name: String,
+    },
     /// The `amiga` profile needs an Amiga model, and the caller named none.
     MissingAmigaModel,
     /// The caller named an Amiga model for a profile that does not use one.
@@ -132,6 +137,13 @@ impl fmt::Display for ProfileError {
             Self::UnknownName { name } => write!(
                 out,
                 "profile {name:?} is not a profile. Use one of compatible, amiga, or clean"
+            ),
+            Self::UnknownModel { name } => write!(
+                out,
+                "filter model {name:?} is not a model. Choose {}, {}, or {}",
+                AmigaModel::A500.as_str(),
+                AmigaModel::A1200.as_str(),
+                AmigaModel::Unfiltered.as_str()
             ),
             Self::MissingAmigaModel => write!(
                 out,
