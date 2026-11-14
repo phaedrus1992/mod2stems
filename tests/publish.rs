@@ -177,6 +177,26 @@ fn publish_refuses_a_path_that_leaves_the_export() -> Result<(), String> {
 }
 
 #[test]
+fn a_report_that_cannot_read_its_directory_names_the_reason() -> Result<(), String> {
+    // The failure report is the only record of the staging work. When the
+    // listing fails, a report with no files reads as an empty directory, and
+    // the caller then believes that the export kept nothing.
+    let workspace = temporary("export-report-unreadable")?;
+    let staging = workspace.join("absent");
+    let report = publish::report_or_path(&staging);
+    let text = report.to_string();
+    require(
+        text.contains(&staging.display().to_string()),
+        &format!("the report names the path, got {text}"),
+    )?;
+    require(
+        text.contains("Could not list"),
+        &format!("the report names the failed listing, got {text}"),
+    )?;
+    require_eq(&report.retained().len(), &0, "the retained file count")
+}
+
+#[test]
 fn create_staging_refuses_a_path_that_exists() -> Result<(), String> {
     // A check followed by a create lets another process take the path between
     // the two calls, so the create itself refuses an existing path.

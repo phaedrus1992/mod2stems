@@ -17,6 +17,7 @@ use crate::manifest::STAGING_PREFIX;
 pub struct StagingReport {
     path: PathBuf,
     retained: Vec<String>,
+    note: Option<String>,
 }
 
 impl StagingReport {
@@ -26,6 +27,7 @@ impl StagingReport {
         Self {
             path,
             retained: Vec::new(),
+            note: None,
         }
     }
 
@@ -33,6 +35,16 @@ impl StagingReport {
     #[must_use]
     pub fn with_retained(mut self, retained: Vec<String>) -> Self {
         self.retained = retained;
+        self
+    }
+
+    /// Returns the report with the reason that its listing failed.
+    ///
+    /// The path survives the failure. A report that dropped the path would
+    /// hide the staging directory that the export kept.
+    #[must_use]
+    pub fn with_note(mut self, note: String) -> Self {
+        self.note = Some(note);
         self
     }
 
@@ -76,6 +88,9 @@ impl fmt::Display for StagingReport {
              inspect.",
             self.path.display()
         )?;
+        if let Some(note) = &self.note {
+            return write!(formatter, " Could not list its files: {note}.");
+        }
         if self.retained.is_empty() {
             return Ok(());
         }

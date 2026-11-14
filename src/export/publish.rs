@@ -79,6 +79,19 @@ pub fn report(staging: &Path) -> Result<StagingReport, ExportError> {
     Ok(StagingReport::new(staging.to_path_buf()).with_retained(retained))
 }
 
+/// Returns the report of a staging directory, even when its listing fails.
+///
+/// A caller that already failed reports the staging path. A cancelled export
+/// must not lose its cause to a listing error, and a caller must not lose the
+/// path of the work that the export kept.
+#[must_use]
+pub fn report_or_path(staging: &Path) -> StagingReport {
+    match report(staging) {
+        Ok(report) => report,
+        Err(error) => StagingReport::new(staging.to_path_buf()).with_note(error.to_string()),
+    }
+}
+
 /// Checks that the staging directory holds every named file and nothing else.
 fn verify(staging: &Path) -> Result<(), ExportError> {
     let manifest = Manifest::read(&staging.join(MANIFEST_FILE))?;

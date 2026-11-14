@@ -313,12 +313,9 @@ fn with_staging(error: ExportError, staging: &Path) -> ExportError {
     if error.staging().is_some() {
         return error;
     }
-    match publish::report(staging) {
-        Ok(report) => ExportError::Failed {
-            cause: Box::new(error),
-            staging: Box::new(report),
-        },
-        Err(_) => error,
+    ExportError::Failed {
+        cause: Box::new(error),
+        staging: Box::new(publish::report_or_path(staging)),
     }
 }
 

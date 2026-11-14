@@ -124,7 +124,7 @@ pub(crate) fn check_cancel(cancel: &Cancel, staging: &Path) -> Result<(), Export
     if !cancel.is_cancelled() {
         return Ok(());
     }
-    let report = publish::report(staging)?;
+    let report = publish::report_or_path(staging);
     Err(ExportError::Cancelled(Box::new(report)))
 }
 
