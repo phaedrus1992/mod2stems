@@ -17,8 +17,16 @@ use crate::export::Progress;
 use crate::export::plan::load;
 use crate::export::publish;
 use crate::export::stage::Stage;
+use crate::stems::StemError;
 use crate::stems::export_channel;
 use crate::stems::reference_render;
+
+/// The subdirectory of the staging directory that holds the scratch renders.
+///
+/// The scratch renders are working files. The export removes the subdirectory
+/// before it publishes, because publication renames the whole staging
+/// directory and a scratch file in it would travel with the export.
+pub(crate) const SCRATCH_DIR: &str = "scratch";
 
 /// The renders of one export, and the staged files that hold them.
 ///
@@ -58,15 +66,17 @@ pub fn render_all<W: Write>(
     staging: &Path,
 ) -> Result<Renders, ExportError> {
     check_cancel(cancel, staging)?;
+    let scratch = staging.join(SCRATCH_DIR);
+    std::fs::create_dir(&scratch).map_err(|error| ExportError::io(&scratch, &error))?;
     let mut module = load(plan.bytes())?;
     let reference = reference_render(&mut module, plan.config(), &plan.policy())?;
     report(progress, Stage::Reference)?;
-    let reference_frames = frames_of(reference.samples());
+    let reference_frames = frames_of(reference.samples())?;
     let mut longest = reference_frames;
     let mut channels = Vec::with_capacity(usize::try_from(plan.channels()).unwrap_or(0));
     for channel in 0..plan.channels() {
         check_cancel(cancel, staging)?;
-        let path = staging.join(format!("stage-{channel:03}.wav"));
+        let path = scratch.join(format!("stage-{channel:03}.wav"));
         let mut module = load(plan.bytes())?;
         let render = export_channel(
             &mut module,
@@ -76,7 +86,7 @@ pub fn render_all<W: Write>(
             &reference,
         )?;
         float_file::write(plan.rate(), &render.samples, &path)?;
-        longest = longest.max(frames_of(&render.samples));
+        longest = longest.max(frames_of(&render.samples)?);
         channels.push(path);
         report(progress, Stage::Channel(channel))?;
     }
@@ -88,8 +98,16 @@ pub fn render_all<W: Write>(
 }
 
 /// Returns the stereo frame count of one render.
-fn frames_of(samples: &[f32]) -> usize {
-    samples.len() / 2
+///
+/// A half frame cannot be placed on the timeline, so the call rejects one
+/// rather than truncating it.
+fn frames_of(samples: &[f32]) -> Result<usize, ExportError> {
+    if samples.len().is_multiple_of(2) {
+        return Ok(samples.len() / 2);
+    }
+    Err(ExportError::Stem(StemError::NotStereo {
+        samples: samples.len(),
+    }))
 }
 
 /// Fails when the caller cancelled the export.

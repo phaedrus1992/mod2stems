@@ -28,6 +28,31 @@ pub enum ManifestError {
         /// The path of the missing file.
         path: PathBuf,
     },
+    /// The staged set holds a file that the manifest does not name.
+    ///
+    /// The whole staging directory publishes in one rename, so a file that the
+    /// manifest does not name would travel with the export unseen
+    /// (`docs/design.md` §5.2).
+    UnnamedFile {
+        /// The path of the file that the manifest does not name.
+        path: PathBuf,
+    },
+    /// A path in the manifest leaves the export root.
+    ///
+    /// Publication joins every path to the staging directory, so an absolute
+    /// path or a `..` component would name a file outside the export.
+    InvalidPath {
+        /// The path that the manifest holds.
+        path: PathBuf,
+    },
+    /// The staging directory already holds an entry.
+    ///
+    /// Another export may still use it, because the staging name holds one
+    /// process id (`docs/design.md` §5.2).
+    StagingExists {
+        /// The staging path.
+        path: PathBuf,
+    },
     /// The staged set cannot be moved onto the destination.
     Publish {
         /// The staging directory.
@@ -79,6 +104,26 @@ impl fmt::Display for ManifestError {
                 formatter,
                 "Cannot publish the export: {} is missing or empty, and the manifest names it. \
                  Check the render step, because a published set must hold every file it lists.",
+                path.display()
+            ),
+            Self::UnnamedFile { path } => write!(
+                formatter,
+                "Cannot publish the export: {} is in the staging directory and the manifest does \
+                 not name it. Report this, because a DAW import would load the file as a stem. \
+                 Remove it from the staging directory and report the export.",
+                path.display()
+            ),
+            Self::InvalidPath { path } => write!(
+                formatter,
+                "Cannot publish the export: the manifest names {}, which leaves the export \
+                 directory. Report this, because the export writes every file inside the export \
+                 directory.",
+                path.display()
+            ),
+            Self::StagingExists { path } => write!(
+                formatter,
+                "Cannot export: the staging directory {} already exists. Another export may still \
+                 use it. Wait for that export to finish, or remove the directory.",
                 path.display()
             ),
             Self::Publish {

@@ -22,6 +22,7 @@ use crate::export::publish;
 use crate::export::readme;
 use crate::export::record::StagedFiles;
 use crate::export::render::Renders;
+use crate::export::render::SCRATCH_DIR;
 use crate::export::render::render_all;
 use crate::export::stage::Stage;
 use crate::manifest::ExportDetails;
@@ -66,6 +67,7 @@ fn execute<W: Write>(
     let details = plan.details(renders.frames, &files)?;
     files.write_manifest(staging, details)?;
     write_readme(plan, staging)?;
+    remove_scratch(staging)?;
     publish::publish(staging, plan.destination())?;
     report(progress, Stage::Publish)?;
     Ok(ExportReport {
@@ -215,6 +217,20 @@ fn stem_entry(plan: &ExportPlan, channel: i32, name: String) -> StemEntry {
 /// Returns the channel index of a position in the render list.
 fn channel_of(index: usize) -> i32 {
     i32::try_from(index).unwrap_or(i32::MAX)
+}
+
+/// Removes the scratch directory of the render phase.
+///
+/// The scratch directory is not part of the export. A failure to remove it does
+/// not stop the run, because `publish` refuses a set that holds an unnamed file
+/// and reports it.
+fn remove_scratch(staging: &Path) -> Result<(), ExportError> {
+    let scratch = staging.join(SCRATCH_DIR);
+    match std::fs::remove_dir_all(&scratch) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ExportError::io(&scratch, &error)),
+    }
 }
 
 /// Writes the README that labels the export.

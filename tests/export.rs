@@ -4,85 +4,29 @@
 //! mixes, the mono layout, the collision rule, and cancellation. The synthetic
 //! module plays two short orders, so a whole export runs in a test.
 
-use std::fmt::Debug;
 use std::path::Path;
-use std::path::PathBuf;
 
 use mod2stems::encode::Format;
 use mod2stems::export::Cancel;
 use mod2stems::export::ExportError;
-use mod2stems::export::ExportReport;
 use mod2stems::export::ExportRequest;
 use mod2stems::export::Progress;
 use mod2stems::export::run;
 use mod2stems::manifest::MANIFEST_FILE;
-use mod2stems::manifest::Manifest;
 use mod2stems::manifest::README_FILE;
 use mod2stems::stems::ChannelLayout;
 
+#[path = "support/fixture.rs"]
+mod fixture;
 #[path = "support/header.rs"]
 mod header;
-// The S3M builders share one file across test binaries, so a binary that mounts
-// the file for one builder leaves the others unused.
-#[expect(
-    dead_code,
-    reason = "the S3M builders share one file across test binaries"
-)]
-#[path = "support/s3m.rs"]
-mod s3m;
-
-/// Returns a new empty directory under the test temporary directory.
-fn temporary(name: &str) -> Result<PathBuf, String> {
-    let base = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    if base.exists() {
-        std::fs::remove_dir_all(&base)
-            .map_err(|error| format!("cannot clear {}: {error}", base.display()))?;
-    }
-    std::fs::create_dir_all(&base)
-        .map_err(|error| format!("cannot create {}: {error}", base.display()))?;
-    Ok(base)
-}
-
-/// Writes the synthetic S3M fixture into `directory` and returns its path.
-///
-/// The vendored corpus holds a minute-long song, and a whole export of it
-/// takes a minute. The synthetic module plays two short orders, so a test
-/// covers the whole run in a second or two.
-fn write_fixture(directory: &Path) -> Result<PathBuf, String> {
-    let path = directory.join("fixture.s3m");
-    std::fs::write(&path, s3m::muted_flow_s3m())
-        .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
-    Ok(path)
-}
-
-/// Returns an error that names `what` when `condition` is false.
-fn require(condition: bool, what: &str) -> Result<(), String> {
-    if condition {
-        Ok(())
-    } else {
-        Err(what.to_owned())
-    }
-}
-
-/// Returns an error that names both values when they differ.
-///
-/// The values are borrowed, so a caller passes a large value without a clone.
-fn require_eq<T: Debug + PartialEq>(actual: &T, expected: &T, what: &str) -> Result<(), String> {
-    if actual == expected {
-        Ok(())
-    } else {
-        Err(format!("{what}: got {actual:?}, expected {expected:?}"))
-    }
-}
-
-/// Returns an error that names both values when two small values differ.
-fn require_val<T: Copy + Debug + PartialEq>(
-    actual: T,
-    expected: T,
-    what: &str,
-) -> Result<(), String> {
-    require_eq(&actual, &expected, what)
-}
+use fixture::export;
+use fixture::manifest_of;
+use fixture::require;
+use fixture::require_eq;
+use fixture::require_val;
+use fixture::temporary;
+use fixture::write_fixture;
 
 /// Reads one float WAV file, as interleaved samples.
 fn read_wav(path: &Path) -> Result<Vec<f32>, String> {
@@ -105,18 +49,6 @@ fn add_into(sum: &mut Vec<f32>, samples: &[f32]) {
     for (total, sample) in sum.iter_mut().zip(samples) {
         *total += sample;
     }
-}
-
-/// Runs one export, and returns the report or the error text.
-fn export(request: &ExportRequest) -> Result<ExportReport, String> {
-    let cancel = Cancel::new();
-    let mut progress = Progress::new(Vec::new());
-    run(request, &cancel, &mut progress).map_err(|error| error.to_string())
-}
-
-/// Reads the manifest of one published export.
-fn manifest_of(destination: &Path) -> Result<Manifest, String> {
-    Manifest::read(&destination.join(MANIFEST_FILE)).map_err(|error| error.to_string())
 }
 
 #[test]
