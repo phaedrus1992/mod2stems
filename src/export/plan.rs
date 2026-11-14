@@ -33,6 +33,13 @@ use crate::stems::StemError;
 /// matters when the library range widens.
 const FLAC_HIGHEST_RATE: i64 = 655_350;
 
+/// The largest input file that the export reads, in bytes.
+///
+/// The export holds the whole module in memory, and libopenmpt supports samples
+/// up to 4 GiB in theory. A 2 GiB cap covers every real module by a wide margin
+/// and keeps a wrong path from a memory exhaustion.
+const INPUT_LIMIT: usize = 2 * 1024 * 1024 * 1024;
+
 /// Everything that one export resolved before its first render.
 ///
 /// The value holds one config, one policy, and one encoding, and every render
@@ -67,8 +74,7 @@ impl ExportPlan {
     /// and [`ExportError::Encode`] when the gain is not usable.
     pub fn resolve(request: &ExportRequest) -> Result<Self, ExportError> {
         request.refuse_existing()?;
-        let bytes = std::fs::read(request.input())
-            .map_err(|error| ExportError::io(request.input(), &error))?;
+        let bytes = read_input(request.input())?;
         let config = request.config()?;
         check_rate(request.format, config.rate())?;
         let encoding = request.encoding(config.rate())?;
@@ -256,6 +262,38 @@ impl ExportPlan {
         }
         settings
     }
+}
+
+/// Returns the bytes of the input module.
+///
+/// The call reads the whole input into memory, because the export loads a fresh
+/// module from those bytes for every channel and records their digest. It
+/// refuses a file above [`INPUT_LIMIT`] before it allocates, so a wrong path to
+/// a large file cannot exhaust memory.
+///
+/// # Errors
+///
+/// Returns [`ExportError::Input`] when the input is too large, and when the
+/// filesystem refuses the read.
+fn read_input(path: &Path) -> Result<Vec<u8>, ExportError> {
+    let metadata = std::fs::metadata(path).map_err(|error| ExportError::Input {
+        path: path.to_path_buf(),
+        detail: error.to_string(),
+    })?;
+    let limit = u64::try_from(INPUT_LIMIT).unwrap_or(u64::MAX);
+    if metadata.len() > limit {
+        return Err(ExportError::Input {
+            path: path.to_path_buf(),
+            detail: format!(
+                "the file holds {} bytes and this tool reads at most {INPUT_LIMIT}",
+                metadata.len()
+            ),
+        });
+    }
+    std::fs::read(path).map_err(|error| ExportError::Input {
+        path: path.to_path_buf(),
+        detail: error.to_string(),
+    })
 }
 
 /// Loads one module from bytes.

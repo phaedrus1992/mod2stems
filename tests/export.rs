@@ -160,6 +160,27 @@ fn an_integer_export_records_the_quantization() -> Result<(), String> {
 }
 
 #[test]
+fn a_missing_input_names_the_read_failure() -> Result<(), String> {
+    let workspace = temporary("export-missing-input")?;
+    let input = workspace.join("absent.s3m");
+    let destination = workspace.join("stems");
+    let request = ExportRequest::new(input.clone(), destination);
+    match export(&request) {
+        Ok(_) => Err("a missing input must fail".to_owned()),
+        Err(message) => {
+            require(
+                message.contains(&input.display().to_string()),
+                &format!("the error names the input, got {message}"),
+            )?;
+            require(
+                message.contains("Cannot read the input module"),
+                &format!("the error names the read, got {message}"),
+            )
+        }
+    }
+}
+
+#[test]
 fn an_existing_destination_is_refused() -> Result<(), String> {
     let workspace = temporary("export-exists")?;
     let input = write_fixture(&workspace)?;

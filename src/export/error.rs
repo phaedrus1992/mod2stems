@@ -180,7 +180,8 @@ impl fmt::Display for ExportError {
         match self {
             Self::Input { path, detail } => write!(
                 formatter,
-                "Cannot read the input module {}: {detail}. Check the path and its permissions.",
+                "Cannot read the input module {}: {detail}. Check that the path names a module \
+                 file that this user can read.",
                 path.display()
             ),
             Self::Library {
