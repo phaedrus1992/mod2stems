@@ -31,16 +31,20 @@ impl<W: Write> Progress<W> {
         }
     }
 
-    /// Reports the render count before any work starts.
+    /// Reports the size of the run before any work starts.
+    ///
+    /// `stages` counts every line that [`Self::stage`] prints, so the counter
+    /// never passes its total. `renders` and `files` state the work itself.
     ///
     /// # Errors
     ///
     /// Returns the reason when the sink cannot write.
-    pub fn begin(&mut self, renders: usize, files: usize) -> std::io::Result<()> {
-        self.total = renders;
+    pub fn begin(&mut self, stages: usize, renders: usize, files: usize) -> std::io::Result<()> {
+        self.total = stages;
         writeln!(
             self.out,
-            "The export runs {renders} render(s) and writes {files} audio file(s)."
+            "The export runs {renders} render(s) and writes {files} audio file(s), in {stages} \
+             step(s)."
         )
     }
 
@@ -83,7 +87,7 @@ mod tests {
     #[test]
     fn the_report_names_the_count_before_the_stages() -> Result<(), String> {
         let mut progress = Progress::new(Vec::new());
-        progress.begin(3, 2).map_err(|e| e.to_string())?;
+        progress.begin(3, 3, 2).map_err(|e| e.to_string())?;
         progress
             .stage(Stage::Reference)
             .map_err(|e| e.to_string())?;

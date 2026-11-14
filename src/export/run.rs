@@ -42,7 +42,8 @@ pub fn run<W: Write>(
 ) -> Result<ExportReport, ExportError> {
     let plan = ExportPlan::resolve(request)?;
     let files = usize::try_from(plan.channels()).unwrap_or(0);
-    report_begin(progress, plan.render_count(), files)?;
+    let stages = stage_count(&plan, request, files);
+    report_begin(progress, stages, plan.render_count(), files)?;
     let staging = publish::create_staging(plan.destination())?;
     match execute(&plan, request, cancel, progress, &staging) {
         Ok(report) => Ok(report),
@@ -319,15 +320,33 @@ fn with_staging(error: ExportError, staging: &Path) -> ExportError {
     }
 }
 
+/// Returns the number of progress lines that the run prints.
+///
+/// The reference and each channel report one render line, each channel file
+/// reports one line, each optional mix reports one line, and the rename reports
+/// one line. The `amiga` check renders the module twice more and reports no
+/// line, so its renders are not counted here.
+fn stage_count(plan: &ExportPlan, request: &ExportRequest, files: usize) -> usize {
+    let renders = usize::try_from(plan.channels())
+        .unwrap_or(0)
+        .saturating_add(1);
+    let mixes = usize::from(request.write_mix) + usize::from(request.write_reference_mix);
+    renders
+        .saturating_add(files)
+        .saturating_add(mixes)
+        .saturating_add(1)
+}
+
 /// Reports the size of the run, and converts a sink failure into an export
 /// error.
 fn report_begin<W: Write>(
     progress: &mut Progress<W>,
+    stages: usize,
     renders: usize,
     files: usize,
 ) -> Result<(), ExportError> {
     progress
-        .begin(renders, files)
+        .begin(stages, renders, files)
         .map_err(|error| ExportError::progress(&error, false))
 }
 

@@ -153,12 +153,12 @@ impl ExportPlan {
     /// Returns the number of renders that a plain export runs.
     ///
     /// The count is the unmuted reference render plus one render per channel.
-    /// An `amiga` export runs three more, because the profile proves that the
+    /// An `amiga` export runs two more, because the profile proves that the
     /// module uses the resampler by comparison (`docs/design.md` §2.1).
     #[must_use]
     pub fn render_count(&self) -> usize {
         let channels = usize::try_from(self.channels).unwrap_or(0);
-        let extra = if self.config.amiga_enabled() { 3 } else { 0 };
+        let extra = if self.config.amiga_enabled() { 2 } else { 0 };
         channels.saturating_add(1).saturating_add(extra)
     }
 
