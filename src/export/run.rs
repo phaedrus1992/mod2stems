@@ -176,9 +176,9 @@ fn write_channel_stems<W: Write>(
 
 /// Writes the sum of the channel stems.
 ///
-/// The sum runs on the float output buffers, so the mix holds the same audio
-/// as the stems at the same layout and the same gain. A mono export sums the
-/// mono stems, because the mean of a sum equals the sum of the means.
+/// The sum runs on the float stereo buffers, so the mix holds the same audio as
+/// the stems at the same gain, and the one downmix runs on the sum. A downmix is
+/// linear, so the mean of a sum equals the sum of the means.
 fn write_mix(
     plan: &ExportPlan,
     renders: &Renders,
@@ -188,7 +188,7 @@ fn write_mix(
 ) -> Result<(), ExportError> {
     let mut sum: Vec<f32> = Vec::new();
     for path in &renders.channels {
-        let samples = audio::layout_samples(path, timeline, plan.layout())?;
+        let samples = audio::padded_samples(path, timeline)?;
         add_into(&mut sum, &samples);
     }
     let name = mix_name("mix", plan);

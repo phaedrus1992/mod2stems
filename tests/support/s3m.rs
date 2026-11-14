@@ -164,8 +164,8 @@ fn sample_header(data_at: usize) -> [u8; SAMPLE_HEADER_LEN] {
     out[0] = 1;
     out[1..5].copy_from_slice(b"wave");
     let pointer = paragraph(data_at);
-    out[13] = pointer[0];
-    out[14] = pointer[1];
+    out[14] = pointer[0];
+    out[15] = pointer[1];
     out[16..20].copy_from_slice(&u32_field(SAMPLE_DATA_LEN).to_le_bytes());
     out[20..24].copy_from_slice(&0_u32.to_le_bytes());
     out[24..28].copy_from_slice(&u32_field(SAMPLE_DATA_LEN).to_le_bytes());

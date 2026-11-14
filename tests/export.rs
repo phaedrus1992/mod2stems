@@ -297,6 +297,40 @@ fn pair_stems_are_refused_with_the_issue_numbers() -> Result<(), String> {
 }
 
 #[test]
+fn a_mono_mix_sums_to_the_mono_stems() -> Result<(), String> {
+    // A mono stem holds one sample per frame. A mix built by summing the mono
+    // stems and then downmixing that sum reads each pair of frames as one
+    // stereo frame, so the mix spans half the timeline.
+    let workspace = temporary("export-mono-sum")?;
+    let input = write_fixture(&workspace)?;
+    let destination = workspace.join("stems");
+    let mut request = ExportRequest::new(input, destination.clone());
+    request.layout = ChannelLayout::Mono;
+    request.write_mix = true;
+    export(&request)?;
+    let manifest = manifest_of(&destination)?;
+    let mut sum: Vec<f32> = Vec::new();
+    for entry in manifest.stems() {
+        let samples = read_wav(&destination.join(entry.path()))?;
+        add_into(&mut sum, &samples);
+    }
+    let mix_name = manifest
+        .details()
+        .mix
+        .clone()
+        .ok_or("the manifest names no mix")?;
+    let mix = read_wav(&destination.join(mix_name))?;
+    require_val(mix.len(), sum.len(), "the mono mix spans the mono stems")?;
+    for (index, (mix_sample, sum_sample)) in mix.iter().zip(&sum).enumerate() {
+        require(
+            (mix_sample - sum_sample).abs() <= 1e-5,
+            &format!("sample {index} differs: mix {mix_sample}, sum {sum_sample}"),
+        )?;
+    }
+    Ok(())
+}
+
+#[test]
 fn the_mix_sums_to_the_stems_within_the_float_tolerance() -> Result<(), String> {
     // The mix is the sum of the final float stems, with no normalization. The
     // check proves the mix is not a separate render and not a scaled copy.

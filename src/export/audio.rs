@@ -53,6 +53,23 @@ pub fn take_layout(
     layout_buffer(&stereo, timeline, layout)
 }
 
+/// Returns the staged stereo render at `path`, padded to the common timeline.
+///
+/// The call keeps the stereo layout. Summing padded stereo buffers is exact for
+/// either output layout: a downmix is linear, so the downmix of a sum equals the
+/// sum of the downmixes. A mono export that summed downmixed buffers instead
+/// would downmix them a second time, because the sum has one sample per frame
+/// and the downmix expects two.
+///
+/// # Errors
+///
+/// Returns [`ExportError::Encode`] when the staged file cannot be read, and
+/// [`ExportError::Stem`] when the render is past the timeline.
+pub fn padded_samples(path: &Path, timeline: Timeline) -> Result<Vec<f32>, ExportError> {
+    let audio = float_file::read(path)?;
+    timeline.pad(&audio.samples).map_err(ExportError::from)
+}
+
 /// Returns the staged stereo render at `path`, in the output layout.
 ///
 /// # Errors
