@@ -16,6 +16,7 @@ use crate::export::ExportPlan;
 use crate::export::Progress;
 use crate::export::plan::load;
 use crate::export::publish;
+use crate::export::run::report;
 use crate::export::stage::Stage;
 use crate::stems::StemError;
 use crate::stems::export_channel;
@@ -45,14 +46,6 @@ pub struct Renders {
     pub warnings: Vec<String>,
 }
 
-impl Renders {
-    /// Returns the frame count of the reference render.
-    #[must_use]
-    pub fn reference_frames(&self) -> usize {
-        self.reference.len() / 2
-    }
-}
-
 /// Renders the reference and every channel of one export.
 ///
 /// # Errors
@@ -77,7 +70,7 @@ pub fn render_all<W: Write>(
     report(progress, Stage::Reference)?;
     let reference_frames = frames_of(reference.samples())?;
     let mut longest = reference_frames;
-    let mut channels = Vec::with_capacity(usize::try_from(plan.channels()).unwrap_or(0));
+    let mut channels = Vec::with_capacity(plan.channel_count());
     for channel in 0..plan.channels() {
         check_cancel(cancel, staging)?;
         let path = scratch.join(format!("stage-{channel:03}.wav"));
@@ -126,11 +119,4 @@ pub(crate) fn check_cancel(cancel: &Cancel, staging: &Path) -> Result<(), Export
     }
     let report = publish::report_or_path(staging);
     Err(ExportError::Cancelled(Box::new(report)))
-}
-
-/// Reports one stage, and converts a sink failure into an export error.
-fn report<W: Write>(progress: &mut Progress<W>, stage: Stage) -> Result<(), ExportError> {
-    progress
-        .stage(stage)
-        .map_err(|error| ExportError::progress(&error, false))
 }

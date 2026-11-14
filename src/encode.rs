@@ -18,9 +18,6 @@ pub mod quantize;
 pub use error::EncodeError;
 pub use format::Format;
 pub use gain::Gain;
-pub use headroom::Headroom;
-pub use headroom::preflight_headroom;
-pub use headroom::preflight_headroom_for;
 pub use quantize::Dither;
 
 use std::path::Path;

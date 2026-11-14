@@ -41,18 +41,6 @@ impl Gain {
     pub fn value(self) -> f32 {
         self.value
     }
-
-    /// Returns true when the gain changes nothing.
-    #[must_use]
-    pub fn is_unity(self) -> bool {
-        (self.value - 1.0).abs() <= f32::EPSILON
-    }
-
-    /// Returns the gain in decibels, for a manifest that a reader compares.
-    #[must_use]
-    pub fn decibels(self) -> f32 {
-        20.0 * self.value.log10()
-    }
 }
 
 /// Scales every sample by `gain`, and checks that each result is finite.
@@ -102,18 +90,6 @@ mod tests {
         let scaled = apply(gain, &[0.5, -0.5]).map_err(|e| e.to_string())?;
         if scaled != [0.25, -0.25] {
             return Err(format!("a half gain gives {scaled:?}"));
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn the_decibel_value_matches_the_factor() -> Result<(), String> {
-        let half = Gain::new(0.5).map_err(|e| e.to_string())?;
-        if !(-6.1..-6.0).contains(&half.decibels()) {
-            return Err(format!("a half gain gives {} dB", half.decibels()));
-        }
-        if !Gain::unity().is_unity() {
-            return Err("unity does not report itself as unity".to_owned());
         }
         Ok(())
     }

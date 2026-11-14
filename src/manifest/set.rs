@@ -16,23 +16,3 @@ pub enum ExportSet {
     /// One file per channel and instrument pair.
     Pairs,
 }
-
-impl ExportSet {
-    /// Returns the directory of the set, relative to the export root.
-    #[must_use]
-    pub fn directory(self) -> Option<&'static str> {
-        match self {
-            Self::Channels => None,
-            Self::Pairs => Some(super::PAIR_DIRECTORY),
-        }
-    }
-
-    /// Returns the text that names the set to a reader.
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Channels => "channel stems",
-            Self::Pairs => "instrument/channel pair stems",
-        }
-    }
-}

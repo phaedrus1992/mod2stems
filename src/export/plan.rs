@@ -9,7 +9,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use openmpt_ext::Module;
-use openmpt_ext::SAMPLE_RATE_RANGE;
 
 use crate::encode::Encoding;
 use crate::encode::Format;
@@ -55,6 +54,7 @@ pub struct ExportPlan {
     destination: PathBuf,
     bytes: Vec<u8>,
     channels: i32,
+    channel_count: usize,
     names: Vec<String>,
     metadata: Vec<(String, String)>,
 }
@@ -80,6 +80,8 @@ impl ExportPlan {
         let encoding = request.encoding(config.rate())?;
         let module = load(&bytes)?;
         let channels = module.num_channels();
+        let channel_count =
+            usize::try_from(channels).map_err(|_| ExportError::ChannelCount { channels })?;
         let names = channel_names(&module, channels)?;
         let metadata = module_metadata(&module)?;
         let policy = PlaybackPolicy::default_policy().with_subsong(request.subsong);
@@ -91,6 +93,7 @@ impl ExportPlan {
             destination: request.destination().to_path_buf(),
             bytes,
             channels,
+            channel_count,
             names,
             metadata,
         })
@@ -121,9 +124,21 @@ impl ExportPlan {
     }
 
     /// Returns the channel count of the module.
+    ///
+    /// The library names a channel by this type, so every render passes one
+    /// channel of this range.
     #[must_use]
     pub fn channels(&self) -> i32 {
         self.channels
+    }
+
+    /// Returns the channel count of the module as a count.
+    ///
+    /// The value was checked when the plan resolved, so a caller that sizes a
+    /// buffer with it gets a whole number.
+    #[must_use]
+    pub fn channel_count(&self) -> usize {
+        self.channel_count
     }
 
     /// Returns the resolved output rate, in Hz.
@@ -157,7 +172,7 @@ impl ExportPlan {
     /// module uses the resampler by comparison (`docs/design.md` §2.1).
     #[must_use]
     pub fn render_count(&self) -> usize {
-        let channels = usize::try_from(self.channels).unwrap_or(0);
+        let channels = self.channel_count;
         let extra = if self.config.amiga_enabled() { 2 } else { 0 };
         channels.saturating_add(1).saturating_add(extra)
     }
@@ -313,8 +328,12 @@ pub fn load(bytes: &[u8]) -> Result<Module, ExportError> {
 }
 
 /// Returns the names that the module gave its channels.
+///
+/// The capacity and the loop both come from the same count, so a count that
+/// does not convert fails here instead of sizing one list and filling another.
 fn channel_names(module: &Module, channels: i32) -> Result<Vec<String>, ExportError> {
-    let mut names = Vec::with_capacity(usize::try_from(channels).unwrap_or(0));
+    let capacity = usize::try_from(channels).map_err(|_| ExportError::ChannelCount { channels })?;
+    let mut names = Vec::with_capacity(capacity);
     for channel in 0..channels {
         let name = module
             .channel_name(channel)
@@ -345,14 +364,8 @@ fn module_metadata(module: &Module) -> Result<Vec<(String, String)>, ExportError
 
 /// Rejects a rate that the encoder cannot store.
 fn check_rate(format: Format, rate: i32) -> Result<(), ExportError> {
-    if !SAMPLE_RATE_RANGE.contains(&rate) {
-        // The profile request rejects this rate too. The check stays, because a
-        // config can arrive from another caller.
-        return Err(ExportError::RateUnsupported {
-            rate,
-            format: "the renderer",
-        });
-    }
+    // `ExportPlan::resolve` rejects a rate outside the renderer range before it
+    // reaches this call, so only the encoder limit is left to check.
     if !format.is_integer() || i64::from(rate) <= FLAC_HIGHEST_RATE {
         return Ok(());
     }

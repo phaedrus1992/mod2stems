@@ -126,6 +126,16 @@ pub enum StemError {
         /// The number of frames in the common timeline.
         timeline: usize,
     },
+    /// The common timeline is longer than any render can reach.
+    ///
+    /// The timeline pads every shorter render, so a count above the render
+    /// limit would name a buffer that no render produced.
+    TimelinePastLimit {
+        /// The number of frames in the common timeline.
+        frames: usize,
+        /// The frame count that one render can reach.
+        limit: usize,
+    },
     /// The render or one of its library calls failed.
     Profile(ProfileError),
 }
@@ -209,6 +219,10 @@ impl fmt::Display for StemError {
             Self::RenderPastTimeline { frames, timeline } => write!(
                 out,
                 "a render holds {frames} frames and the common timeline holds {timeline}. The common end is the longest completed render, so a longer render means the timeline was built from another set of renders. Build the timeline from every render that the export writes"
+            ),
+            Self::TimelinePastLimit { frames, limit } => write!(
+                out,
+                "the common timeline holds {frames} frames and one render can reach {limit}. The timeline pads every shorter render, so a count above the render limit names a buffer that no render produced. Build the timeline from the frame counts of the renders that the export measured"
             ),
             Self::Profile(error) => write!(out, "{error}"),
         }

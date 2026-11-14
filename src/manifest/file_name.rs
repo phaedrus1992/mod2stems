@@ -22,6 +22,7 @@ const MAX_NAME_BYTES: usize = 64;
 #[must_use]
 pub fn file_name(channel: i32, name: Option<&str>, extension: &str) -> String {
     let index = index_text(channel);
+    let extension = sanitize_extension(extension);
     match name.and_then(sanitize) {
         Some(clean) => format!("ch_{index}_{clean}.{extension}"),
         None => format!("ch_{index}.{extension}"),
@@ -51,7 +52,8 @@ pub fn sample_file_name(channel: i32, sample: i32, name: Option<&str>, extension
 /// Returns the name of one pair stem under the named marker.
 fn pair_name(marker: &str, channel: i32, slot: i32, name: Option<&str>, extension: &str) -> String {
     let channel = index_text(channel);
-    let slot = format!("{:03}", slot.max(0));
+    let slot = slot_text(slot);
+    let extension = sanitize_extension(extension);
     match name.and_then(sanitize) {
         Some(clean) => format!("ch_{channel}_{marker}_{slot}_{clean}.{extension}"),
         None => format!("ch_{channel}_{marker}_{slot}.{extension}"),
@@ -59,8 +61,28 @@ fn pair_name(marker: &str, channel: i32, slot: i32, name: Option<&str>, extensio
 }
 
 /// Returns the two-digit index text of one channel.
+///
+/// A negative channel keeps its sign, so it cannot share a name with channel
+/// zero. The caller rejects such a channel before it builds a name.
 fn index_text(channel: i32) -> String {
-    format!("{:02}", channel.max(0))
+    format!("{channel:02}")
+}
+
+/// Returns the three-digit text of one instrument or sample slot.
+fn slot_text(slot: i32) -> String {
+    format!("{slot:03}")
+}
+
+/// Returns the extension text of one file name.
+///
+/// The extension comes from the format, so it is already a short ASCII word.
+/// The call repeats the check, because a file name is a path component and a
+/// separator must never arrive there from any caller.
+fn sanitize_extension(extension: &str) -> String {
+    extension
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .collect()
 }
 
 /// Returns the text part of a file name that a module supplies, or `None`.

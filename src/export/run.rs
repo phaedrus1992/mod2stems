@@ -41,7 +41,7 @@ pub fn run<W: Write>(
     progress: &mut Progress<W>,
 ) -> Result<ExportReport, ExportError> {
     let plan = ExportPlan::resolve(request)?;
-    let files = usize::try_from(plan.channels()).unwrap_or(0);
+    let files = plan.channel_count();
     let stages = stage_count(&plan, request, files);
     report_begin(progress, stages, plan.render_count(), files)?;
     let staging = publish::create_staging(plan.destination())?;
@@ -61,7 +61,7 @@ fn execute<W: Write>(
 ) -> Result<ExportReport, ExportError> {
     let mut renders = render_all(plan, cancel, progress, staging)?;
     amiga::check(plan, &renders.reference)?;
-    let timeline = Timeline::from_frame_count(renders.frames)?;
+    let timeline = Timeline::from_frame_count(renders.frames, render_limit(plan)?)?;
     preflight(plan, request, &renders, timeline)?;
     let files = write_files(
         plan,
@@ -92,6 +92,16 @@ fn execute<W: Write>(
         files: files.audio_paths().len(),
         frames: renders.frames,
     })
+}
+
+/// Returns the frame count that one render of this export can reach.
+///
+/// The bound is the same one that the render loop enforces, so a timeline
+/// cannot pad to a length that no render produced.
+fn render_limit(plan: &ExportPlan) -> Result<usize, ExportError> {
+    let max_seconds = plan.policy().max_seconds();
+    crate::profile::render::frame_limit(plan.rate(), max_seconds)
+        .map_err(|error| ExportError::from(crate::stems::StemError::from(error)))
 }
 
 /// Checks every output against the integer range before any file is written.
@@ -223,9 +233,10 @@ fn write_channel_stems<W: Write>(
     files: &mut StagedFiles,
     cancel: &Cancel,
 ) -> Result<(), ExportError> {
-    for (index, staged) in renders.channels.iter().enumerate() {
+    // The render loop built one file per channel of the same range, so the
+    // channel index comes from that range and needs no conversion.
+    for (channel, staged) in (0..plan.channels()).zip(&renders.channels) {
         check_cancel(cancel, staging)?;
-        let channel = channel_of(index);
         let name = plan.stem_name(channel);
         let path = staging.join(&name);
         audio::write_output(staged, timeline, plan.layout(), plan.encoding(), &path)?;
@@ -275,11 +286,6 @@ fn stem_entry(plan: &ExportPlan, channel: i32, name: String) -> StemEntry {
     StemEntry::channel(channel, plan.channel_name(channel), PathBuf::from(name))
 }
 
-/// Returns the channel index of a position in the render list.
-fn channel_of(index: usize) -> i32 {
-    i32::try_from(index).unwrap_or(i32::MAX)
-}
-
 /// Removes the scratch directory of the render phase.
 ///
 /// The scratch directory is not part of the export. A failure to remove it does
@@ -327,9 +333,7 @@ fn with_staging(error: ExportError, staging: &Path) -> ExportError {
 /// one line. The `amiga` check renders the module twice more and reports no
 /// line, so its renders are not counted here.
 fn stage_count(plan: &ExportPlan, request: &ExportRequest, files: usize) -> usize {
-    let renders = usize::try_from(plan.channels())
-        .unwrap_or(0)
-        .saturating_add(1);
+    let renders = plan.channel_count().saturating_add(1);
     let mixes = usize::from(request.write_mix) + usize::from(request.write_reference_mix);
     renders
         .saturating_add(files)
@@ -352,7 +356,10 @@ fn report_begin<W: Write>(
 
 /// Reports one stage that runs before the rename, and converts a sink failure
 /// into an export error.
-fn report<W: Write>(progress: &mut Progress<W>, stage: Stage) -> Result<(), ExportError> {
+pub(crate) fn report<W: Write>(
+    progress: &mut Progress<W>,
+    stage: Stage,
+) -> Result<(), ExportError> {
     progress
         .stage(stage)
         .map_err(|error| ExportError::progress(&error, false))

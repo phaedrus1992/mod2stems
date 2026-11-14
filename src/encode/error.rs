@@ -59,11 +59,6 @@ pub enum EncodeError {
         /// The reason from the writer.
         detail: String,
     },
-    /// Two level measurements checked against different formats.
-    ///
-    /// The peaks of two formats are not comparable, so a merged measurement
-    /// would report a range that no output used.
-    FormatMismatch,
     /// The FLAC encoder rejected the stream, or gave a stream of another length.
     Flac {
         /// The reason from the encoder.
@@ -132,12 +127,6 @@ impl fmt::Display for EncodeError {
                 "Cannot write {}: {detail}. Check that the parent directory exists and is \
                  writable.",
                 path.display()
-            ),
-            Self::FormatMismatch => write!(
-                formatter,
-                "Cannot merge the level measurements: they checked against different formats. \
-                 Measure every output against the format that the export writes, then merge the \
-                 results."
             ),
             Self::Flac { detail } => write!(
                 formatter,

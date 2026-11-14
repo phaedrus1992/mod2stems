@@ -60,12 +60,19 @@ impl Timeline {
     /// frame count of every render that the export writes, the unmuted render
     /// included, because the timeline is what aligns them.
     ///
+    /// `limit` is the frame count that one render can reach, so a count above
+    /// it names a padding buffer that no render produced.
+    ///
     /// # Errors
     ///
-    /// Returns [`StemError::EmptyTimeline`] when the count is zero.
-    pub fn from_frame_count(frames: usize) -> Result<Self, StemError> {
+    /// Returns [`StemError::EmptyTimeline`] when the count is zero, and
+    /// [`StemError::TimelinePastLimit`] when the count is above `limit`.
+    pub fn from_frame_count(frames: usize, limit: usize) -> Result<Self, StemError> {
         if frames == 0 {
             return Err(StemError::EmptyTimeline);
+        }
+        if frames > limit {
+            return Err(StemError::TimelinePastLimit { frames, limit });
         }
         Ok(Self { frames })
     }

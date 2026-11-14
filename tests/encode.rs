@@ -13,7 +13,6 @@ use mod2stems::encode::Encoding;
 use mod2stems::encode::Format;
 use mod2stems::encode::encode;
 use mod2stems::encode::float_file;
-use mod2stems::encode::preflight_headroom;
 
 /// The output rate that the tests use.
 const RATE: i32 = 48_000;
@@ -57,15 +56,6 @@ fn require_eq<T: Debug + PartialEq>(actual: &T, expected: &T, what: &str) -> Res
     } else {
         Err(format!("{what}: got {actual:?}, expected {expected:?}"))
     }
-}
-
-/// Returns an error that names both values when two small values differ.
-fn require_val<T: Copy + Debug + PartialEq>(
-    actual: T,
-    expected: T,
-    what: &str,
-) -> Result<(), String> {
-    require_eq(&actual, &expected, what)
 }
 
 #[test]
@@ -120,43 +110,6 @@ fn a_gain_above_one_is_accepted() -> Result<(), String> {
         .with_gain(2.0)
         .map(|_| ())
         .map_err(|e| e.to_string())
-}
-
-#[test]
-fn preflight_reports_every_output_over_the_range() -> Result<(), String> {
-    // The preflight names the peak and how many outputs exceed the range, so
-    // the caller chooses a common attenuation with the cost in front of it.
-    let loud = vec![0.5_f32, 1.5, -3.0, 0.0];
-    let quiet = vec![0.1_f32, -0.1, 0.1, -0.1];
-    let report = preflight_headroom(
-        Format::FlacI16,
-        [loud.as_slice(), quiet.as_slice(), loud.as_slice()],
-    )
-    .map_err(|error| error.to_string())?;
-    require(!report.fits(), "a sample of 3.0 is over 16-bit range")?;
-    require_val(report.peak(), 3.0, "the peak")?;
-    require_val(report.outputs_over(), 2, "the outputs over the range")?;
-    require_val(report.outputs(), 3, "the output count")
-}
-
-#[test]
-fn preflight_passes_a_signal_inside_the_integer_range() -> Result<(), String> {
-    let quiet = vec![0.5_f32, -0.5, 0.25, -0.25];
-    let report =
-        preflight_headroom(Format::FlacI16, [quiet.as_slice()]).map_err(|e| e.to_string())?;
-    require(report.fits(), "a signal below full scale fits")?;
-    require_val(report.outputs_over(), 0, "the outputs over the range")
-}
-
-#[test]
-fn preflight_needs_no_headroom_for_float() -> Result<(), String> {
-    // A float output holds any finite sample, so the integer range never
-    // rejects it (docs/design.md §5.1).
-    let loud = vec![9.0_f32, -9.0];
-    let report =
-        preflight_headroom(Format::WavF32, [loud.as_slice()]).map_err(|e| e.to_string())?;
-    require(report.fits(), "a float output has no range to exceed")?;
-    require_val(report.outputs_over(), 0, "the outputs over the range")
 }
 
 #[test]
@@ -325,7 +278,6 @@ fn a_staged_float_file_round_trips_every_bit() -> Result<(), String> {
     let path = tempdir()?.join("round-trip.wav");
     float_file::write(RATE, &samples, &path).map_err(|e| e.to_string())?;
     let read_back = float_file::read(&path).map_err(|e| e.to_string())?;
-    require_val(read_back.rate, RATE, "the staged rate")?;
     require_eq(&read_back.samples, &samples, "the staged samples")
 }
 

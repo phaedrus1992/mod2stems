@@ -63,20 +63,6 @@ impl<W: Write> Progress<W> {
             stage.describe()
         )
     }
-
-    /// Reports one line that is not a stage.
-    ///
-    /// # Errors
-    ///
-    /// Returns the reason when the sink cannot write.
-    pub fn note(&mut self, text: &str) -> std::io::Result<()> {
-        writeln!(self.out, "{text}")
-    }
-
-    /// Returns the sink.
-    pub fn into_inner(self) -> W {
-        self.out
-    }
 }
 
 #[cfg(test)]
@@ -86,12 +72,15 @@ mod tests {
 
     #[test]
     fn the_report_names_the_count_before_the_stages() -> Result<(), String> {
-        let mut progress = Progress::new(Vec::new());
-        progress.begin(3, 3, 2).map_err(|e| e.to_string())?;
-        progress
-            .stage(Stage::Reference)
-            .map_err(|e| e.to_string())?;
-        let text = String::from_utf8(progress.into_inner()).map_err(|e| e.to_string())?;
+        let mut buffer: Vec<u8> = Vec::new();
+        {
+            let mut progress = Progress::new(&mut buffer);
+            progress.begin(3, 3, 2).map_err(|e| e.to_string())?;
+            progress
+                .stage(Stage::Reference)
+                .map_err(|e| e.to_string())?;
+        }
+        let text = String::from_utf8(buffer).map_err(|e| e.to_string())?;
         let first = text.lines().next().unwrap_or_default();
         if !first.contains('3') {
             return Err(format!("the count does not come first, got {text:?}"));

@@ -13,7 +13,6 @@ use crate::encode::encode;
 use crate::encode::float_file;
 use crate::export::ExportError;
 use crate::stems::ChannelLayout;
-use crate::stems::StemError;
 use crate::stems::Timeline;
 use crate::stems::downmix;
 
@@ -38,21 +37,6 @@ pub fn layout_buffer(
 
 /// Returns one stereo render in the output layout, and releases the input.
 ///
-/// The call empties `samples` before it converts, so a long song holds one
-/// buffer of the export in memory and not two.
-///
-/// # Errors
-///
-/// Returns the same errors as [`layout_buffer`].
-pub fn take_layout(
-    samples: &mut Vec<f32>,
-    timeline: Timeline,
-    layout: ChannelLayout,
-) -> Result<Vec<f32>, ExportError> {
-    let stereo = std::mem::take(samples);
-    layout_buffer(&stereo, timeline, layout)
-}
-
 /// Returns the staged stereo render at `path`, padded to the common timeline.
 ///
 /// The call keeps the stereo layout. Summing padded stereo buffers is exact for
@@ -118,20 +102,4 @@ pub fn write_buffer(
 ) -> Result<(), ExportError> {
     let converted = layout_buffer(samples, timeline, layout)?;
     encode(&encoding, &converted, output).map_err(ExportError::from)
-}
-
-/// Returns the frame count of one staged stereo render.
-///
-/// # Errors
-///
-/// Returns [`ExportError::Encode`] when the staged file cannot be read, and
-/// [`ExportError::Stem`] when the render holds a half frame.
-pub fn frames_of_render(path: &Path) -> Result<usize, ExportError> {
-    let audio = float_file::read(path)?;
-    if !audio.samples.len().is_multiple_of(2) {
-        return Err(ExportError::Stem(StemError::NotStereo {
-            samples: audio.samples.len(),
-        }));
-    }
-    Ok(audio.samples.len() / 2)
 }

@@ -52,6 +52,11 @@ pub enum ExportError {
         /// The format that cannot store it.
         format: &'static str,
     },
+    /// The library reports a channel count that no export can use.
+    ChannelCount {
+        /// The count that the library reported.
+        channels: i32,
+    },
     /// The caller asked for pair stems, and this release does not build them.
     PairsUnavailable,
     /// The export is louder than the integer format holds.
@@ -199,6 +204,12 @@ impl fmt::Display for ExportError {
                 formatter,
                 "Cannot encode at {rate} Hz as {format}: the format cannot store that rate. Choose \
                  another rate, such as 48000, or choose float WAV.",
+            ),
+            Self::ChannelCount { channels } => write!(
+                formatter,
+                "Cannot export the module: the library reports {channels} channel(s). Check that \
+                 the input is a module that this libopenmpt build reads, because a channel count \
+                 below zero names no channel."
             ),
             Self::PairsUnavailable => write!(
                 formatter,

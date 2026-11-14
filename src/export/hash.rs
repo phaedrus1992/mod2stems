@@ -4,6 +4,8 @@
 //! module bytes produced the export. A path alone would name nothing after a
 //! file moves or changes.
 
+use std::fmt::Write as _;
+
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -17,15 +19,10 @@ pub fn hash(bytes: &[u8]) -> String {
     let mut text = String::with_capacity(7 + digest.len().saturating_mul(2));
     text.push_str("sha256:");
     for byte in digest {
-        text.push(nibble(byte >> 4));
-        text.push(nibble(byte & 0x0F));
+        // Writing to a `String` cannot fail.
+        let _ = write!(text, "{byte:02x}");
     }
     text
-}
-
-/// Returns the lower-case hex digit of one nibble.
-fn nibble(value: u8) -> char {
-    char::from_digit(u32::from(value), 16).unwrap_or('0')
 }
 
 #[cfg(test)]

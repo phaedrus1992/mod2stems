@@ -173,7 +173,7 @@ pub(crate) fn read_song(
 /// Returns [`ProfileError::LimitOutOfRange`] when the count does not fit in a
 /// `usize`. A saturated count would never fire, so the guard would not stop a
 /// pathological module.
-fn frame_limit(rate: i32, max_seconds: u64) -> Result<usize, ProfileError> {
+pub(crate) fn frame_limit(rate: i32, max_seconds: u64) -> Result<usize, ProfileError> {
     let too_long = || ProfileError::LimitOutOfRange {
         limit_seconds: max_seconds,
         rate,

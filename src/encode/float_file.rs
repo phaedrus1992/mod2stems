@@ -13,8 +13,6 @@ use crate::encode::EncodeError;
 /// The audio of one staged float file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FloatAudio {
-    /// The sample rate that the file states, in Hz.
-    pub rate: i32,
     /// The interleaved stereo samples.
     pub samples: Vec<f32>,
 }
@@ -55,8 +53,7 @@ pub fn write(rate: i32, samples: &[f32], path: &Path) -> Result<(), EncodeError>
 /// # Errors
 ///
 /// Returns [`EncodeError::NotStereo`] when the file holds a channel count that
-/// is not two, [`EncodeError::BadRate`] when the file states no usable rate,
-/// and [`EncodeError::Write`] when the file fails to read.
+/// is not two, and [`EncodeError::Write`] when the file fails to read.
 pub fn read(path: &Path) -> Result<FloatAudio, EncodeError> {
     let mut reader =
         hound::WavReader::open(path).map_err(|error| EncodeError::write(path, &error))?;
@@ -67,11 +64,9 @@ pub fn read(path: &Path) -> Result<FloatAudio, EncodeError> {
             channels: usize::from(spec.channels),
         });
     }
-    let rate =
-        i32::try_from(spec.sample_rate).map_err(|_| EncodeError::BadRate { rate: i32::MAX })?;
     let samples = reader
         .samples::<f32>()
         .collect::<Result<Vec<f32>, _>>()
         .map_err(|error| EncodeError::write(path, &error))?;
-    Ok(FloatAudio { rate, samples })
+    Ok(FloatAudio { samples })
 }

@@ -60,18 +60,6 @@ impl StagedFiles {
         self.files.iter().map(|(_, path)| path.as_path()).collect()
     }
 
-    /// Returns the staged mix path.
-    #[must_use]
-    pub fn mix(&self) -> Option<&Path> {
-        self.mix.as_deref()
-    }
-
-    /// Returns the staged reference mix path.
-    #[must_use]
-    pub fn reference_mix(&self) -> Option<&Path> {
-        self.reference_mix.as_deref()
-    }
-
     /// Returns the relative name of the mix, for the manifest.
     #[must_use]
     pub fn mix_name(&self) -> Option<String> {

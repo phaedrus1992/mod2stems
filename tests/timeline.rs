@@ -216,6 +216,33 @@ fn an_empty_timeline_fails() -> Result<(), String> {
 }
 
 #[test]
+fn a_measured_timeline_past_the_render_limit_fails() -> Result<(), String> {
+    // The timeline pads every shorter render, so a count above the render
+    // limit names a buffer that no render produced.
+    match Timeline::from_frame_count(11, 10) {
+        Err(StemError::TimelinePastLimit {
+            frames: 11,
+            limit: 10,
+        }) => Ok(()),
+        other => Err(format!(
+            "11 frames under a limit of 10 give {other:?}, expected TimelinePastLimit"
+        )),
+    }
+}
+
+#[test]
+fn a_measured_timeline_at_the_render_limit_holds() -> Result<(), String> {
+    let timeline = Timeline::from_frame_count(10, 10).map_err(|error| error.to_string())?;
+    if timeline.frames() != 10 {
+        return Err(format!(
+            "the timeline holds {} frames, expected 10",
+            timeline.frames()
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn a_padded_render_keeps_its_leading_silence() -> Result<(), String> {
     // Leading silence is audio, not a gap to trim. The first non-zero sample
     // must stay at the same index after alignment.
