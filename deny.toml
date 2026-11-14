@@ -5,6 +5,9 @@ allow = [
   "BSD-3-Clause",
   "CC0-1.0",
   "Unlicense",
+  # `unicode-ident` is an attribute of `proc-macro2`, which every derive macro
+  # pulls in. The license is the OSI-approved Unicode License v3.
+  "Unicode-3.0",
 ]
 # The allow list above is the complete set. Add a license only when a real
 # dependency reports it.

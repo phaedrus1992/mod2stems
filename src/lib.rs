@@ -4,6 +4,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod encode;
+pub mod export;
+pub mod manifest;
 pub mod profile;
 pub mod stems;
 
