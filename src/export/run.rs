@@ -22,6 +22,7 @@ use crate::export::readme;
 use crate::export::record::StagedFiles;
 use crate::export::render::Renders;
 use crate::export::render::SCRATCH_DIR;
+use crate::export::render::check_cancel;
 use crate::export::render::render_all;
 use crate::export::stage::Stage;
 use crate::manifest::README_FILE;
@@ -61,15 +62,27 @@ fn execute<W: Write>(
     amiga::check(plan, &renders.reference)?;
     let timeline = Timeline::from_frame_count(renders.frames)?;
     preflight(plan, request, &renders, timeline)?;
-    let files = write_files(plan, request, &mut renders, timeline, progress, staging)?;
+    let files = write_files(
+        plan,
+        request,
+        &mut renders,
+        timeline,
+        progress,
+        staging,
+        cancel,
+    )?;
     let details = plan.details(
         renders.frames,
         std::mem::take(&mut renders.warnings),
         &files,
     )?;
+    check_cancel(cancel, staging)?;
     files.write_manifest(staging, details)?;
     write_readme(plan, renders.frames, staging)?;
     remove_scratch(staging)?;
+    // The last check stands before the rename, so a cancelled export never
+    // publishes a complete set that the caller no longer wants.
+    check_cancel(cancel, staging)?;
     publish::publish(staging, plan.destination())?;
     report_published(progress)?;
     Ok(ExportReport {
@@ -158,14 +171,19 @@ fn write_files<W: Write>(
     timeline: Timeline,
     progress: &mut Progress<W>,
     staging: &Path,
+    cancel: &Cancel,
 ) -> Result<StagedFiles, ExportError> {
     let mut files = StagedFiles::new();
+    check_cancel(cancel, staging)?;
     if request.write_reference_mix {
         write_reference_mix(plan, renders, timeline, staging, &mut files)?;
         report(progress, Stage::ReferenceMix)?;
     }
-    write_channel_stems(plan, renders, timeline, progress, staging, &mut files)?;
+    write_channel_stems(
+        plan, renders, timeline, progress, staging, &mut files, cancel,
+    )?;
     if request.write_mix {
+        check_cancel(cancel, staging)?;
         write_mix(plan, renders, timeline, staging, &mut files)?;
         report(progress, Stage::Mix)?;
     }
@@ -202,8 +220,10 @@ fn write_channel_stems<W: Write>(
     progress: &mut Progress<W>,
     staging: &Path,
     files: &mut StagedFiles,
+    cancel: &Cancel,
 ) -> Result<(), ExportError> {
     for (index, staged) in renders.channels.iter().enumerate() {
+        check_cancel(cancel, staging)?;
         let channel = channel_of(index);
         let name = plan.stem_name(channel);
         let path = staging.join(&name);

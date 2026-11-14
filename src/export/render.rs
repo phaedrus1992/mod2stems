@@ -117,7 +117,10 @@ fn frames_of(samples: &[f32]) -> Result<usize, ExportError> {
 }
 
 /// Fails when the caller cancelled the export.
-fn check_cancel(cancel: &Cancel, staging: &Path) -> Result<(), ExportError> {
+///
+/// The error carries the staging report, so the caller sees the work that the
+/// cancelled export kept.
+pub(crate) fn check_cancel(cancel: &Cancel, staging: &Path) -> Result<(), ExportError> {
     if !cancel.is_cancelled() {
         return Ok(());
     }

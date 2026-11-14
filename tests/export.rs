@@ -259,6 +259,57 @@ fn a_cancelled_export_publishes_nothing() -> Result<(), String> {
     )
 }
 
+/// The sink that cancels the export when it writes the line that names a
+/// `needle`.
+///
+/// The cancellation lands between two stages, which is where a person presses
+/// the interrupt key: a progress line arrives, the person reacts, and the
+/// export continues.
+struct CancelOn {
+    needle: &'static str,
+    cancel: Cancel,
+}
+
+impl std::io::Write for CancelOn {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(buffer);
+        if text.contains(self.needle) {
+            self.cancel.cancel();
+        }
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_cancel_after_the_last_render_publishes_nothing() -> Result<(), String> {
+    // The renders are the long step, so a person cancels during them. Every
+    // later stage must still reach the flag, and the rename must not run.
+    let workspace = temporary("export-cancel-late")?;
+    let input = write_fixture(&workspace)?;
+    let destination = workspace.join("stems");
+    let request = ExportRequest::new(input, destination.clone());
+    let cancel = Cancel::new();
+    let mut progress = Progress::new(CancelOn {
+        needle: "rendered channel 1",
+        cancel: cancel.clone(),
+    });
+    let Err(error) = run(&request, &cancel, &mut progress) else {
+        return Err("a cancelled export must fail".to_owned());
+    };
+    require(
+        matches!(error, ExportError::Cancelled(_)),
+        &format!("the error names the cancellation, got {error}"),
+    )?;
+    require(
+        !destination.exists(),
+        "a cancelled export publishes nothing",
+    )
+}
+
 /// The sink that fails on the line that names a `needle`.
 ///
 /// The publish line is the last one, so the sink must accept every earlier
