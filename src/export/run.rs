@@ -9,7 +9,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::encode::Encoding;
 use crate::export::Cancel;
 use crate::export::ExportError;
 use crate::export::ExportPlan;
@@ -25,7 +24,6 @@ use crate::export::render::Renders;
 use crate::export::render::SCRATCH_DIR;
 use crate::export::render::render_all;
 use crate::export::stage::Stage;
-use crate::manifest::ExportDetails;
 use crate::manifest::README_FILE;
 use crate::manifest::StemEntry;
 use crate::stems::Timeline;
@@ -64,7 +62,11 @@ fn execute<W: Write>(
     let timeline = Timeline::from_frame_count(renders.frames)?;
     preflight(plan, &renders, timeline)?;
     let files = write_files(plan, request, &mut renders, timeline, progress, staging)?;
-    let details = plan.details(renders.frames, &files)?;
+    let details = plan.details(
+        renders.frames,
+        std::mem::take(&mut renders.warnings),
+        &files,
+    )?;
     files.write_manifest(staging, details)?;
     write_readme(plan, renders.frames, staging)?;
     remove_scratch(staging)?;
@@ -290,25 +292,4 @@ fn report_published<W: Write>(progress: &mut Progress<W>) -> Result<(), ExportEr
     progress
         .stage(Stage::Publish)
         .map_err(|error| ExportError::progress(&error, true))
-}
-
-/// Returns the encoding of one export.
-#[must_use]
-pub fn encoding_of(plan: &ExportPlan) -> Encoding {
-    plan.encoding()
-}
-
-/// Returns the export details of one finished export.
-///
-/// The call exists for a test that builds a manifest without a run.
-///
-/// # Errors
-///
-/// Returns the same errors as [`ExportPlan::details`].
-pub fn details_of(
-    plan: &ExportPlan,
-    frames: usize,
-    files: &StagedFiles,
-) -> Result<ExportDetails, ExportError> {
-    plan.details(frames, files)
 }

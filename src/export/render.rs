@@ -41,6 +41,8 @@ pub struct Renders {
     pub channels: Vec<PathBuf>,
     /// The longest frame count of every render, in stereo frames.
     pub frames: usize,
+    /// Every warning that the library reported during the renders.
+    pub warnings: Vec<String>,
 }
 
 impl Renders {
@@ -69,7 +71,9 @@ pub fn render_all<W: Write>(
     let scratch = staging.join(SCRATCH_DIR);
     std::fs::create_dir(&scratch).map_err(|error| ExportError::io(&scratch, &error))?;
     let mut module = load(plan.bytes())?;
+    let mut warnings = module.take_log();
     let reference = reference_render(&mut module, plan.config(), &plan.policy())?;
+    warnings.extend(module.take_log());
     report(progress, Stage::Reference)?;
     let reference_frames = frames_of(reference.samples())?;
     let mut longest = reference_frames;
@@ -86,6 +90,7 @@ pub fn render_all<W: Write>(
             &reference,
         )?;
         float_file::write(plan.rate(), &render.samples, &path)?;
+        warnings.extend(module.take_log());
         longest = longest.max(frames_of(&render.samples)?);
         channels.push(path);
         report(progress, Stage::Channel(channel))?;
@@ -94,6 +99,7 @@ pub fn render_all<W: Write>(
         reference: reference.samples().to_vec(),
         channels,
         frames: longest,
+        warnings,
     })
 }
 

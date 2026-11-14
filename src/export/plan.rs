@@ -198,6 +198,7 @@ impl ExportPlan {
     pub fn details(
         &self,
         frames: usize,
+        warnings: Vec<String>,
         files: &StagedFiles,
     ) -> Result<ExportDetails, ExportError> {
         Ok(ExportDetails {
@@ -218,8 +219,8 @@ impl ExportPlan {
             quantization: quantization_name(self.encoding),
             subsong: self.policy.subsong(),
             module_metadata: self.metadata.clone(),
-            warnings: Vec::new(),
-            validation: "unverified".to_owned(),
+            warnings,
+            validation: "none: this release measures no reconstruction".to_owned(),
         })
     }
 
@@ -325,15 +326,18 @@ fn channel_names(module: &Module, channels: i32) -> Result<Vec<String>, ExportEr
 
 /// Returns every metadata key and value of the module.
 ///
-/// A key whose value cannot be read keeps an empty value, because one broken
-/// key must not fail an export that the audio does not depend on.
+/// A failed read fails the export. A manifest that silently drops a value
+/// states a record that the module does not support, and the audio never
+/// depends on the metadata.
 fn module_metadata(module: &Module) -> Result<Vec<(String, String)>, ExportError> {
     let keys = module
         .metadata_keys()
         .map_err(|error| library_error("the metadata key read", &error))?;
     let mut metadata = Vec::with_capacity(keys.len());
     for key in keys {
-        let value = module.metadata(&key).unwrap_or_default();
+        let value = module
+            .metadata(&key)
+            .map_err(|error| library_error("the metadata value read", &error))?;
         metadata.push((key, value));
     }
     Ok(metadata)
