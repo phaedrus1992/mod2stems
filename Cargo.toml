@@ -42,7 +42,7 @@ publish.workspace = true
 [dependencies]
 # The argument parser. It owns the spellings that the design leaves to
 # implementation, and it prints the help and the usage errors.
-clap = { version = "=4.6.7", features = ["derive"] }
+clap = { version = "=4.6.8", features = ["derive"] }
 flacenc = "=0.5.1"
 hound = "=3.5.1"
 openmpt-ext = { path = "crates/openmpt-ext", version = "0.0.0" }
